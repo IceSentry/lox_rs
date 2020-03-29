@@ -1,0 +1,11 @@
+/*
+ * this is a block comment
+ */
+// this is a comment
+(( )){} // grouping stuff
+!*+-/=<> <= == // operators
+"This is a string"
+1234
+12.34
+test_123
+var test_123 = 123;
