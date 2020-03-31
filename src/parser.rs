@@ -1,10 +1,11 @@
 use crate::{
     expr::Expr,
     scanner::{Token, TokenType},
+    stmt::Stmt,
     Lox,
 };
 
-struct ParserError(String);
+pub struct ParserError(String);
 
 pub struct Parser<'a> {
     tokens: Vec<Token>,
@@ -21,11 +22,40 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse(&mut self) -> Option<Expr> {
-        match self.expression() {
-            Ok(expr) => Some(expr),
-            Err(_) => None,
+    pub fn parse(&mut self) -> Result<Vec<Stmt>, ()> {
+        let mut statements = Vec::new();
+        let mut errors = Vec::new();
+        while !self.is_at_end() {
+            match self.statement() {
+                Ok(statement) => statements.push(statement),
+                Err(error) => errors.push(error),
+            }
         }
+        if errors.len() > 0 {
+            Err(())
+        } else {
+            Ok(statements)
+        }
+    }
+
+    fn statement(&mut self) -> Result<Stmt, ParserError> {
+        if self.match_tokens(&vec![TokenType::PRINT]) {
+            self.print_statement()
+        } else {
+            self.expression_statement()
+        }
+    }
+
+    fn print_statement(&mut self) -> Result<Stmt, ParserError> {
+        let value = self.expression();
+        self.consume(TokenType::SEMICOLON, "Expect ';' after value")?;
+        value.and_then(|value| Ok(Stmt::Print(Box::new(value))))
+    }
+
+    fn expression_statement(&mut self) -> Result<Stmt, ParserError> {
+        let expr = self.expression();
+        self.consume(TokenType::SEMICOLON, "Expect ';' after expression")?;
+        expr.and_then(|expr| Ok(Stmt::Expression(Box::new(expr))))
     }
 
     fn expression(&mut self) -> Result<Expr, ParserError> {

@@ -3,6 +3,7 @@ mod interpreter;
 mod lox;
 mod parser;
 mod scanner;
+mod stmt;
 
 use std::env;
 use std::fs;

@@ -1,6 +1,7 @@
 use crate::{
     expr::Expr,
     scanner::{Literal, Token, TokenType},
+    stmt::Stmt,
     Lox,
 };
 use derive_new::*;
@@ -10,7 +11,7 @@ use std::fmt;
 pub struct RuntimeError(pub Token, pub String);
 
 #[derive(PartialEq)]
-enum LoxValue {
+pub enum LoxValue {
     Nil,
     Number(f64),
     Boolean(bool),
@@ -47,17 +48,18 @@ impl fmt::Display for LoxValue {
         }
     }
 }
+
 #[derive(new)]
 pub struct Interpreter<'a> {
     lox: &'a mut Lox,
 }
 
 impl<'a> Interpreter<'a> {
-    pub fn interpret(&mut self, expression: Expr) {
-        let value = self.evaluate(expression);
-        match value {
-            Ok(value) => println!("{}", value),
-            Err(error) => self.lox.runtime_error(error),
+    pub fn interpret(&mut self, statements: Vec<Stmt>) {
+        for statement in statements {
+            if let Err(error) = self.execute(statement) {
+                self.lox.runtime_error(error);
+            }
         }
     }
 
@@ -67,6 +69,20 @@ impl<'a> Interpreter<'a> {
             Expr::Grouping(expr) => self.evaluate(*expr),
             Expr::Literal(literal) => self.evaluate_literal(literal),
             Expr::Unary(operator, right) => self.evaluate_unary_op(operator, *right),
+        }
+    }
+
+    fn execute(&self, stmt: Stmt) -> Result<(), RuntimeError> {
+        match stmt {
+            Stmt::Expression(expr) => {
+                self.evaluate(*expr)?;
+                Ok(())
+            }
+            Stmt::Print(expr) => {
+                let value = self.evaluate(*expr)?;
+                println!("{}", value);
+                Ok(())
+            }
         }
     }
 

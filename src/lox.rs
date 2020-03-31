@@ -2,6 +2,7 @@ use crate::{
     interpreter::{Interpreter, RuntimeError},
     parser::Parser,
     scanner::{Position, Scanner, Token, TokenType},
+    stmt::Stmt,
 };
 
 pub struct Lox {
@@ -21,12 +22,10 @@ impl Lox {
         let mut scanner = Scanner::new(self, String::from(source));
         let tokens = scanner.scan_tokens();
         let mut parser = Parser::new(tokens.to_vec(), self);
-        let expression = parser.parse();
-        let mut interpreter = Interpreter::new(self);
-
-        if let Some(expression) = expression {
-            interpreter.interpret(expression);
-        } // else syntax error
+        if let Ok(statements) = parser.parse() {
+            let mut interpreter = Interpreter::new(self);
+            interpreter.interpret(statements);
+        }
     }
 
     pub fn error(&mut self, token: &Token, message: String) {
