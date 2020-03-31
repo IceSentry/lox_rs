@@ -1,13 +1,16 @@
 use crate::Lox;
 use derive_new::*;
+use fmt::Display;
 use std::fmt;
+use std::fmt::*;
 
 #[rustfmt::skip]
 #[allow(non_camel_case_types)]
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum TokenType {
     // Single-character tokens
-    LEFT_PAREN, RIGHT_PAREN, LEFT_BRACE, RIGHT_BRACE, COMMA, DOT, MINUS, PLUS, SLASH, STAR, SEMICOLON,
+    LEFT_PAREN, RIGHT_PAREN, LEFT_BRACE, RIGHT_BRACE, 
+    COMMA, DOT, MINUS, PLUS, SLASH, STAR, SEMICOLON,
 
     // One or two char tokens
     BANG, BANG_EQUAL,
@@ -16,7 +19,7 @@ pub enum TokenType {
     LESS, LESS_EQUAL,
 
     // Literals
-    IDENTIFIER(String), STRING(String), NUMBER(f64),
+    IDENTIFIER, STRING, NUMBER,
 
     //Keywords
     AND, CLASS, ELSE, FALSE, FUN, FOR, IF, NIL, OR,
@@ -25,11 +28,41 @@ pub enum TokenType {
     EOF
 }
 
-#[derive(new, Debug)]
+#[derive(Debug, Clone)]
+pub enum Literal {
+    Identifier(String),
+    String(String),
+    Number(f64),
+    FALSE,
+    TRUE,
+    Nil,
+}
+
+impl Display for Literal {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        match self {
+            Literal::Number(value) => write!(f, "{}", value),
+            Literal::String(value) => write!(f, "{}", value),
+            Literal::Identifier(identifier) => write!(f, "{}", identifier),
+            Literal::FALSE => write!(f, "false"),
+            Literal::TRUE => write!(f, "true"),
+            Literal::Nil => write!(f, "nil"),
+        }
+    }
+}
+
+#[derive(new, Debug, Clone)]
 pub struct Token {
-    token_type: TokenType,
-    lexeme: String,
-    position: Position,
+    pub token_type: TokenType,
+    pub lexeme: String,
+    pub literal: Option<Literal>,
+    pub position: Position,
+}
+
+impl Display for Token {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.lexeme)
+    }
 }
 
 #[derive(new, Clone, Copy, Debug)]
@@ -83,77 +116,66 @@ impl<'a> Scanner<'a> {
     pub fn scan_tokens(&mut self) -> &[Token] {
         while !self.is_at_end() {
             self.start = self.current;
-            if let Some(token) = self.scan_token() {
-                self.add_token(token);
+            if let Some((token, literal)) = self.scan_token() {
+                self.add_token(token, literal);
             }
         }
-        self.tokens
-            .push(Token::new(TokenType::EOF, String::from(""), self.position));
+        self.tokens.push(Token::new(
+            TokenType::EOF,
+            String::from(""),
+            None,
+            self.position,
+        ));
         &self.tokens
     }
 
-    fn scan_token(&mut self) -> Option<TokenType> {
+    fn scan_token(&mut self) -> Option<(TokenType, Option<Literal>)> {
         use TokenType::*;
         let c = self.advance();
         match c {
-            '(' => Some(LEFT_PAREN),
-            ')' => Some(RIGHT_PAREN),
-            '{' => Some(LEFT_BRACE),
-            '}' => Some(RIGHT_BRACE),
-            ',' => Some(COMMA),
-            '.' => Some(DOT),
-            '-' => Some(MINUS),
-            '+' => Some(PLUS),
-            ';' => Some(SEMICOLON),
-            '*' => Some(STAR),
-            '!' => Some(if self.advance_if_match('=') {
-                BANG_EQUAL
-            } else {
-                BANG
-            }),
-            '=' => Some(if self.advance_if_match('=') {
-                EQUAL_EQUAL
-            } else {
-                EQUAL
-            }),
-            '<' => Some(if self.advance_if_match('=') {
-                LESS_EQUAL
-            } else {
-                LESS
-            }),
-            '>' => Some(if self.advance_if_match('=') {
-                GREATER_EQUAL
-            } else {
-                GREATER
-            }),
-            '/' => {
-                if self.advance_if_match('/') {
-                    while self.peek() != '\n' && !self.is_at_end() {
-                        self.advance();
-                    }
-                    None
-                } else if self.advance_if_match('*') {
-                    println!("adv if match *");
-
-                    loop {
-                        if self.peek() == '*' && self.peek_next() == '/' {
-                            self.advance();
-                            self.advance(); // consume */
-                            return None;
-                        }
-                        if self.is_at_end() {
-                            self.lox.report_error(
-                                self.position,
-                                "Scanner",
-                                String::from("Unterminated block comment"),
-                            );
-                        }
-                        self.advance();
-                    }
+            '(' => Some((LEFT_PAREN, None)),
+            ')' => Some((RIGHT_PAREN, None)),
+            '{' => Some((LEFT_BRACE, None)),
+            '}' => Some((RIGHT_BRACE, None)),
+            ',' => Some((COMMA, None)),
+            '.' => Some((DOT, None)),
+            '-' => Some((MINUS, None)),
+            '+' => Some((PLUS, None)),
+            ';' => Some((SEMICOLON, None)),
+            '*' => Some((STAR, None)),
+            '!' => Some((
+                if self.advance_if_match('=') {
+                    BANG_EQUAL
                 } else {
-                    Some(TokenType::SLASH)
-                }
-            }
+                    BANG
+                },
+                None,
+            )),
+            '=' => Some((
+                if self.advance_if_match('=') {
+                    EQUAL_EQUAL
+                } else {
+                    EQUAL
+                },
+                None,
+            )),
+            '<' => Some((
+                if self.advance_if_match('=') {
+                    LESS_EQUAL
+                } else {
+                    LESS
+                },
+                None,
+            )),
+            '>' => Some((
+                if self.advance_if_match('=') {
+                    GREATER_EQUAL
+                } else {
+                    GREATER
+                },
+                None,
+            )),
+            '/' => self.comment_or_slash(),
             ' ' | '\r' | '\t' => None, // ignore whitespace
             '\n' => {
                 self.position.increment_line();
@@ -177,10 +199,14 @@ impl<'a> Scanner<'a> {
         self.current >= self.source.len()
     }
 
-    fn add_token(&mut self, token: TokenType) {
+    fn add_token(&mut self, token: TokenType, literal: Option<Literal>) {
         let text = &self.source[self.start..self.current];
-        self.tokens
-            .push(Token::new(token, String::from(text), self.position));
+        self.tokens.push(Token::new(
+            token,
+            String::from(text),
+            literal,
+            self.position,
+        ));
     }
 
     fn peek(&self) -> char {
@@ -235,7 +261,7 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    fn string(&mut self) -> Option<TokenType> {
+    fn string(&mut self) -> Option<(TokenType, Option<Literal>)> {
         while self.peek() != '"' && !self.is_at_end() {
             self.advance();
         }
@@ -251,12 +277,15 @@ impl<'a> Scanner<'a> {
 
         self.advance(); // the closing "
 
-        Some(TokenType::STRING(String::from(
-            &self.source[(self.start + 1)..(self.current - 1)],
-        )))
+        Some((
+            TokenType::STRING,
+            Some(Literal::String(String::from(
+                &self.source[(self.start + 1)..(self.current - 1)],
+            ))),
+        ))
     }
 
-    fn number(&mut self) -> TokenType {
+    fn number(&mut self) -> (TokenType, Option<Literal>) {
         while self.peek().is_ascii_digit() {
             self.advance();
         }
@@ -270,33 +299,63 @@ impl<'a> Scanner<'a> {
         let value: f64 = current_lexeme
             .parse()
             .expect("current_lexeme should be a number");
-        TokenType::NUMBER(value)
+        (TokenType::NUMBER, Some(Literal::Number(value)))
     }
 
-    fn identifier(&mut self) -> TokenType {
+    fn comment_or_slash(&mut self) -> Option<(TokenType, Option<Literal>)> {
+        if self.advance_if_match('/') {
+            while self.peek() != '\n' && !self.is_at_end() {
+                self.advance();
+            }
+            None
+        } else if self.advance_if_match('*') {
+            loop {
+                if self.peek() == '*' && self.peek_next() == '/' {
+                    self.advance();
+                    self.advance(); // consume */
+                    return None;
+                }
+                if self.is_at_end() {
+                    self.lox.report_error(
+                        self.position,
+                        "Scanner",
+                        String::from("Unterminated block comment"),
+                    );
+                }
+                self.advance();
+            }
+        } else {
+            Some((TokenType::SLASH, None))
+        }
+    }
+
+    fn identifier(&mut self) -> (TokenType, Option<Literal>) {
         use TokenType::*;
         while is_alphanumeric(self.peek()) {
             self.advance();
         }
         let current_lexeme = &self.source[self.start..self.current];
         match current_lexeme {
-            "and" => AND,
-            "class" => CLASS,
-            "else" => ELSE,
-            "false" => FALSE,
-            "for" => FOR,
-            "fun" => FUN,
-            "if" => IF,
-            "nil" => NIL,
-            "or" => OR,
-            "print" => PRINT,
-            "return" => RETURN,
-            "super" => SUPER,
-            "this" => THIS,
-            "true" => TRUE,
-            "var" => VAR,
-            "while" => WHILE,
-            _ => IDENTIFIER(String::from(current_lexeme)),
+            "and" => (AND, None),
+            "class" => (CLASS, None),
+            "else" => (ELSE, None),
+            "false" => (FALSE, Some(Literal::FALSE)),
+            "for" => (FOR, None),
+            "fun" => (FUN, None),
+            "if" => (IF, None),
+            "nil" => (NIL, Some(Literal::Nil)),
+            "or" => (OR, None),
+            "print" => (PRINT, None),
+            "return" => (RETURN, None),
+            "super" => (SUPER, None),
+            "this" => (THIS, None),
+            "true" => (TRUE, Some(Literal::TRUE)),
+            "var" => (VAR, None),
+            "while" => (WHILE, None),
+            _ => (
+                IDENTIFIER,
+                Some(Literal::Identifier(String::from(current_lexeme))),
+            ),
         }
     }
 }
