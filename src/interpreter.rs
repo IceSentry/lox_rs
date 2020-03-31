@@ -75,7 +75,7 @@ impl<'a> Interpreter<'a> {
             Literal::String(value) => LoxValue::String(value),
             Literal::Number(value) => LoxValue::Number(value),
             Literal::FALSE => LoxValue::Boolean(false),
-            Literal::TRUE => LoxValue::Boolean(false),
+            Literal::TRUE => LoxValue::Boolean(true),
             Literal::Nil => LoxValue::Nil,
             Literal::Identifier(_) => todo!(),
         })
