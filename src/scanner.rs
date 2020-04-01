@@ -268,10 +268,7 @@ impl<'a> Scanner<'a> {
             "true" => (TRUE, Some(Literal::TRUE)),
             "let" => (LET, None),
             "while" => (WHILE, None),
-            _ => (
-                IDENTIFIER,
-                Some(Literal::Identifier(String::from(current_lexeme))),
-            ),
+            _ => (IDENTIFIER, None),
         }
     }
 }

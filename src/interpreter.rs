@@ -110,7 +110,6 @@ where
             Literal::FALSE => LoxValue::Boolean(false),
             Literal::TRUE => LoxValue::Boolean(true),
             Literal::Nil => LoxValue::Nil,
-            Literal::Identifier(_) => todo!(),
         })
     }
 
