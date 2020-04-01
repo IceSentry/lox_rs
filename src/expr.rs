@@ -9,6 +9,7 @@ pub enum Expr {
     Unary(Token, Box<Expr>),
     Variable(Token),
     Assign(Token, Box<Expr>),
+    Logical(Box<Expr>, Token, Box<Expr>),
 }
 
 impl Display for Expr {
@@ -20,6 +21,7 @@ impl Display for Expr {
             Expr::Unary(operator, right) => write!(f, "({} {})", operator, right),
             Expr::Variable(token) => write!(f, "{}", token),
             Expr::Assign(token, value) => write!(f, "{} = {}", token, value),
+            Expr::Logical(left, operator, right) => write!(f, "({} {} {})", left, operator, right),
         }
     }
 }

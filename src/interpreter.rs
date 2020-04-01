@@ -54,6 +54,23 @@ where
                 let value = self.evaluate(*value_expr)?;
                 self.lox.environment.assign(token, value.clone())
             }
+            Expr::Logical(left, operator, right) => {
+                let left = self.evaluate(*left)?;
+                match operator.token_type {
+                    TokenType::OR => {
+                        if left.is_truthy() {
+                            return Ok(left);
+                        }
+                    }
+                    _ => {
+                        if !left.is_truthy() {
+                            return Ok(left);
+                        }
+                    }
+                };
+
+                return self.evaluate(*right);
+            }
         }
     }
 
@@ -221,6 +238,18 @@ mod tests {
         );
     }
 
+    fn assert_output_list(source: &str, expected: Vec<&str>) {
+        let mut lox = Lox::new(false);
+        let mut output = Vec::new();
+        lox.run(source, &mut output);
+        let output = String::from_utf8(output).expect("Not UTF-8");
+        for (i, result) in output.split('\n').into_iter().enumerate() {
+            if !result.is_empty() {
+                assert_eq!(result, expected[i]);
+            }
+        }
+    }
+
     #[test]
     fn test_shadowing() {
         let source = r#"
@@ -256,21 +285,14 @@ mod tests {
             print b;
             print c;
         "#;
-        let mut lox = Lox::new(false);
-        let mut output = Vec::new();
-        lox.run(source, &mut output);
-        let output = String::from_utf8(output).expect("Not UTF-8");
-        let mut output = output.split('\n').into_iter();
 
-        assert_eq!("inner a", output.next().unwrap());
-        assert_eq!("outer b", output.next().unwrap());
-        assert_eq!("global c", output.next().unwrap());
-        assert_eq!("outer a", output.next().unwrap());
-        assert_eq!("outer b", output.next().unwrap());
-        assert_eq!("global c", output.next().unwrap());
-        assert_eq!("global a", output.next().unwrap());
-        assert_eq!("global b", output.next().unwrap());
-        assert_eq!("global c", output.next().unwrap());
+        assert_output_list(
+            source,
+            vec![
+                "inner a", "outer b", "global c", "outer a", "outer b", "global c", "global a",
+                "global b", "global c",
+            ],
+        )
     }
 
     #[test]
@@ -315,5 +337,15 @@ mod tests {
             }
         "#;
         assert_output(source, "else_branch");
+    }
+
+    #[test]
+    fn test_logical_operator() {
+        let source = r#"
+            print "hi" or 2; // "hi".
+            print nil or "yes"; // "yes".
+        "#;
+
+        assert_output_list(source, vec!["hi", "yes"]);
     }
 }

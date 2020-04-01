@@ -19,22 +19,22 @@ pub enum LoxValue {
 }
 
 impl LoxValue {
-    pub fn is_truthy(self) -> bool {
+    pub fn is_truthy(&self) -> bool {
         use LoxValue::*;
         match self {
             Nil | Undefined => false,
-            Boolean(value) => value,
+            Boolean(value) => *value,
             _ => true,
         }
     }
 
-    pub fn is_equal(self, other: LoxValue) -> bool {
+    pub fn is_equal(&self, other: LoxValue) -> bool {
         use LoxValue::*;
         match (self, other) {
             (Nil, Nil) => true,
             (Number(a), Number(b)) => a.approx_eq(b, F64Margin::default()),
-            (String(a), String(b)) => a == b,
-            (Boolean(a), Boolean(b)) => a == b,
+            (String(ref a), String(ref b)) => *a == *b,
+            (Boolean(a), Boolean(b)) => *a == b,
             _ => false, // no type coercion
         }
     }
