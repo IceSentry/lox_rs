@@ -1,9 +1,12 @@
+mod environment;
 mod expr;
 mod interpreter;
+mod literal;
 mod lox;
 mod parser;
 mod scanner;
 mod stmt;
+mod token;
 
 use std::env;
 use std::fs;
@@ -14,7 +17,7 @@ use lox::Lox;
 
 fn main() -> io::Result<()> {
     let args: Vec<String> = env::args().collect();
-    let mut lox = Lox::new();
+    let mut lox = Lox::new(false); // TODO use structop flag
 
     match args.len() {
         1 => run_prompt(&mut lox),
@@ -28,7 +31,7 @@ fn main() -> io::Result<()> {
 
 fn run_file(lox: &mut Lox, path: &str) -> io::Result<()> {
     let source = fs::read_to_string(path).expect("Failed to read file");
-    lox.run(&source);
+    lox.run(&source, std::io::stdout());
     if lox.had_error {
         println!("There was an error while running the file {}", path);
         std::process::exit(65);
@@ -41,7 +44,7 @@ fn run_file(lox: &mut Lox, path: &str) -> io::Result<()> {
 
 fn run_prompt(lox: &mut Lox) -> io::Result<()> {
     println!("lox prompt: ");
-
+    lox.is_repl = true;
     loop {
         print!("> ");
         io::stdout().flush()?;
@@ -53,7 +56,7 @@ fn run_prompt(lox: &mut Lox) -> io::Result<()> {
             std::process::exit(0);
         }
 
-        lox.run(&buffer);
+        lox.run(&buffer, std::io::stdout());
         if lox.had_error {
             lox.had_error = false;
         }

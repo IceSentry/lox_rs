@@ -1,7 +1,7 @@
 use crate::{
     expr::Expr,
-    scanner::{Token, TokenType},
     stmt::Stmt,
+    token::{Token, TokenType},
     Lox,
 };
 
@@ -13,6 +13,44 @@ pub struct Parser<'a> {
     lox: &'a mut Lox,
 }
 
+/// This parses expressions and statements according to this grammar:
+///
+/// program         -> declaration* EOF ;
+///
+/// declaration     -> let_decl
+///                  | statement ;
+///
+/// let_decl        -> "let" IDENTIFIER ( "=" expression )? ";" ;
+///
+/// statement       -> print_stmt
+///                  | expr_stmt
+///                  | block ;
+///
+/// block           -> "{" declaration* "}" ;
+///
+/// print_stmt      -> "print" expression ";" ;
+/// expr_stmt       -> expression ";"
+///
+/// expression      -> assignment ;
+///
+/// assignment      -> IDENTIFIER "=" assignment
+///                  | equality ;
+///
+/// equality        -> comparison ( ( "!=" | "==" ) comparison )* ;
+///
+/// comparison      -> addition ( ( ">" | ">=" | "<" | "<=" ) addition )* ;
+///
+/// addition        -> multiplication ( ( "-" | "+" ) multiplication )* ;
+///
+/// multiplication  -> unary ( ( "/" | "*" ) unary )* ;
+///
+/// unary           -> ( "!" | "-" ) unary
+///                  | primary ;
+///
+/// primary         -> "true" | "false" | "nil"
+///                  | NUMBER | STRING
+///                  | "(" expression ")"
+///                  | IDENTIFIER ;
 impl<'a> Parser<'a> {
     pub fn new(tokens: Vec<Token>, lox: &'a mut Lox) -> Self {
         Parser {
@@ -22,46 +60,111 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse(&mut self) -> Result<Vec<Stmt>, ()> {
+    /// program -> declaration* EOF ;
+    pub fn parse(&mut self) -> Result<Vec<Stmt>, ParserError> {
         let mut statements = Vec::new();
-        let mut errors = Vec::new();
         while !self.is_at_end() {
-            match self.statement() {
-                Ok(statement) => statements.push(statement),
-                Err(error) => errors.push(error),
-            }
+            statements.push(self.declaration())
         }
-        if errors.len() > 0 {
-            Err(())
-        } else {
-            Ok(statements)
-        }
+        statements.into_iter().collect()
     }
 
+    /// declaration -> let_decl
+    ///              | statement ;
+    fn declaration(&mut self) -> Result<Stmt, ParserError> {
+        let result = if self.match_tokens(&vec![TokenType::LET]) {
+            self.let_declaration()
+        } else {
+            self.statement()
+        };
+
+        if result.is_err() {
+            self.synchronise();
+        }
+        result
+    }
+
+    /// let_decl -> "let" IDENTIFIER ( "=" expression )? ";" ;
+    fn let_declaration(&mut self) -> Result<Stmt, ParserError> {
+        let name = self
+            .consume(TokenType::IDENTIFIER, "Expected variable name")?
+            .clone();
+
+        let initializer = if self.match_tokens(&vec![TokenType::EQUAL]) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+
+        self.consume(
+            TokenType::SEMICOLON,
+            "Expected ';' after variable declaration",
+        )?;
+        Ok(Stmt::Let(name, Box::new(initializer)))
+    }
+
+    /// statement  -> print_stmt
+    ///             | block
+    ///             | expr_stmt ;
     fn statement(&mut self) -> Result<Stmt, ParserError> {
         if self.match_tokens(&vec![TokenType::PRINT]) {
             self.print_statement()
+        } else if self.match_tokens(&vec![TokenType::LEFT_BRACE]) {
+            Ok(Stmt::Block(self.block()?))
         } else {
             self.expression_statement()
         }
     }
 
+    /// print_stmt → "print" expression ";" ;
     fn print_statement(&mut self) -> Result<Stmt, ParserError> {
+        // TODO remove this when we have a standard library
         let value = self.expression();
         self.consume(TokenType::SEMICOLON, "Expect ';' after value")?;
         value.and_then(|value| Ok(Stmt::Print(Box::new(value))))
     }
 
+    fn block(&mut self) -> Result<Vec<Box<Stmt>>, ParserError> {
+        let mut statements = Vec::new();
+        while !self.check(&TokenType::RIGHT_BRACE) && !self.is_at_end() {
+            statements.push(Box::new(self.declaration()?));
+        }
+        self.consume(TokenType::RIGHT_BRACE, "Expected '}' after block")?;
+        Ok(statements)
+    }
+
+    /// expr_stmt  → expression ";"
     fn expression_statement(&mut self) -> Result<Stmt, ParserError> {
+        // TODO support expression with no ;
         let expr = self.expression();
         self.consume(TokenType::SEMICOLON, "Expect ';' after expression")?;
         expr.and_then(|expr| Ok(Stmt::Expression(Box::new(expr))))
     }
 
+    /// expression -> assignment ;
     fn expression(&mut self) -> Result<Expr, ParserError> {
-        self.equality()
+        self.assignment()
     }
 
+    /// assignment -> IDENTIFIER "=" assignment
+    ///             | equality ;
+    fn assignment(&mut self) -> Result<Expr, ParserError> {
+        let expr = self.equality();
+
+        if self.match_tokens(&vec![TokenType::EQUAL]) {
+            let equals = self.previous().clone();
+            let value = self.assignment()?;
+
+            match expr {
+                Ok(Expr::Variable(token)) => Ok(Expr::Assign(token, Box::new(value))),
+                _ => Err(self.error_token(&equals, "Invalid assignment target")),
+            }
+        } else {
+            expr
+        }
+    }
+
+    /// equality -> comparison ( ( "!=" | "==" ) comparison )* ;
     fn equality(&mut self) -> Result<Expr, ParserError> {
         let mut expr = self.comparison()?;
 
@@ -74,6 +177,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
+    /// comparison -> addition ( ( ">" | ">=" | "<" | "<=" ) addition )* ;
     fn comparison(&mut self) -> Result<Expr, ParserError> {
         let mut expr = self.addition()?;
 
@@ -86,6 +190,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
+    /// addition -> multiplication ( ( "-" | "+" ) multiplication )* ;
     fn addition(&mut self) -> Result<Expr, ParserError> {
         let mut expr = self.multiplication()?;
 
@@ -98,6 +203,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
+    /// multiplication -> unary ( ( "/" | "*" ) unary )* ;
     fn multiplication(&mut self) -> Result<Expr, ParserError> {
         let mut expr = self.unary()?;
 
@@ -110,6 +216,8 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
+    /// unary -> ( "!" | "-" ) unary
+    ///        | primary ;
     fn unary(&mut self) -> Result<Expr, ParserError> {
         use TokenType::*;
         if self.match_tokens(&vec![BANG, MINUS]) {
@@ -121,6 +229,10 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// primary -> "true" | "false" | "nil"
+    ///          | NUMBER | STRING
+    ///          | "(" expression ")"
+    ///          | IDENTIFIER ;
     fn primary(&mut self) -> Result<Expr, ParserError> {
         use TokenType::*;
         if self.match_tokens(&vec![FALSE, TRUE, NIL, NUMBER, STRING]) {
@@ -128,6 +240,8 @@ impl<'a> Parser<'a> {
                 Some(literal) => Ok(Expr::Literal(literal)),
                 _ => Err(self.error("Expected literal")),
             }
+        } else if self.match_tokens(&vec![IDENTIFIER]) {
+            Ok(Expr::Variable(self.previous().clone()))
         } else if self.match_tokens(&vec![LEFT_PAREN]) {
             let expr = self.expression()?;
             self.consume(RIGHT_PAREN, "Expected ')' after expression")?;
@@ -155,7 +269,7 @@ impl<'a> Parser<'a> {
             }
 
             match self.peek().token_type {
-                CLASS | FUN | VAR | FOR | IF | WHILE | PRINT | RETURN => return,
+                CLASS | FUN | LET | FOR | IF | WHILE | PRINT | RETURN => return,
                 _ => self.advance(),
             };
         }

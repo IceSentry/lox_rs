@@ -1,89 +1,101 @@
 use crate::{
+    environment::Environment,
     expr::Expr,
-    scanner::{Literal, Token, TokenType},
+    literal::Literal,
+    lox::LoxValue,
     stmt::Stmt,
+    token::{Token, TokenType},
     Lox,
 };
-use derive_new::*;
-use float_cmp::*;
-use std::fmt;
+use std::{cell::RefCell, rc::Rc};
 
 pub struct RuntimeError(pub Token, pub String);
 
-#[derive(PartialEq)]
-pub enum LoxValue {
-    Nil,
-    Number(f64),
-    Boolean(bool),
-    String(String),
-}
-
-impl LoxValue {
-    fn is_truthy(self) -> bool {
-        match self {
-            LoxValue::Nil => false,
-            LoxValue::Boolean(value) => value,
-            _ => true,
-        }
-    }
-
-    fn is_equal(self, other: LoxValue) -> bool {
-        match (self, other) {
-            (LoxValue::Nil, LoxValue::Nil) => true,
-            (LoxValue::Number(a), LoxValue::Number(b)) => a.approx_eq(b, F64Margin::default()),
-            (LoxValue::String(a), LoxValue::String(b)) => a == b,
-            (LoxValue::Boolean(a), LoxValue::Boolean(b)) => a == b,
-            _ => false, // no type coercion
-        }
-    }
-}
-
-impl fmt::Display for LoxValue {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            LoxValue::Nil => write!(f, "nil"),
-            LoxValue::Number(value) => write!(f, "{}", value),
-            LoxValue::Boolean(value) => write!(f, "{}", value),
-            LoxValue::String(value) => write!(f, "{}", value),
-        }
-    }
-}
-
-#[derive(new)]
-pub struct Interpreter<'a> {
+pub struct Interpreter<'a, W>
+where
+    W: std::io::Write,
+{
     lox: &'a mut Lox,
+    output: W,
 }
 
-impl<'a> Interpreter<'a> {
+impl<'a, W> Interpreter<'a, W>
+where
+    W: std::io::Write,
+{
+    pub fn new(lox: &'a mut Lox, output: W) -> Self {
+        Interpreter { lox, output }
+    }
+
     pub fn interpret(&mut self, statements: Vec<Stmt>) {
         for statement in statements {
+            if self.lox.debug {
+                println!("DEBUG {}", statement);
+            }
             if let Err(error) = self.execute(statement) {
                 self.lox.runtime_error(error);
             }
         }
     }
 
-    fn evaluate(&self, expr: Expr) -> Result<LoxValue, RuntimeError> {
+    fn evaluate(&mut self, expr: Expr) -> Result<LoxValue, RuntimeError> {
         match expr {
             Expr::Binary(left, operator, right) => self.evaluate_binary_op(*left, operator, *right),
             Expr::Grouping(expr) => self.evaluate(*expr),
             Expr::Literal(literal) => self.evaluate_literal(literal),
             Expr::Unary(operator, right) => self.evaluate_unary_op(operator, *right),
+            Expr::Variable(variable) => self.lox.environment.get(variable),
+            Expr::Assign(token, value_expr) => {
+                let value = self.evaluate(*value_expr)?;
+                self.lox.environment.assign(token, value.clone())
+            }
         }
     }
 
-    fn execute(&self, stmt: Stmt) -> Result<(), RuntimeError> {
+    fn execute(&mut self, stmt: Stmt) -> Result<(), RuntimeError> {
         match stmt {
             Stmt::Expression(expr) => {
-                self.evaluate(*expr)?;
+                let value = self.evaluate(*expr)?;
+                if self.lox.debug || self.lox.is_repl {
+                    println!("=> {}", value);
+                }
                 Ok(())
             }
             Stmt::Print(expr) => {
                 let value = self.evaluate(*expr)?;
-                println!("{}", value);
+                writeln!(self.output, "{}", value).expect("failed to write to ouput");
                 Ok(())
             }
+            Stmt::Let(token, initializer) => {
+                let value = match *initializer {
+                    Some(inializer_value) => self.evaluate(inializer_value)?,
+                    None => LoxValue::Nil, // should be runtime error
+                };
+                self.lox.environment.define(token.lexeme, value);
+                Ok(())
+            }
+            Stmt::Block(statements) => self.execute_block(
+                statements,
+                Environment::new(Rc::new(RefCell::new(self.lox.environment.clone()))),
+            ),
         }
+    }
+
+    fn execute_block(
+        &mut self,
+        statements: Vec<Box<Stmt>>,
+        environment: Environment,
+    ) -> Result<(), RuntimeError> {
+        let previous = self.lox.environment.clone();
+        self.lox.environment = environment;
+
+        for stmt in statements {
+            self.execute(*stmt)?;
+        }
+
+        self.lox.environment = previous;
+
+        Ok(())
     }
 
     fn evaluate_literal(&self, literal: Literal) -> Result<LoxValue, RuntimeError> {
@@ -97,7 +109,11 @@ impl<'a> Interpreter<'a> {
         })
     }
 
-    fn evaluate_unary_op(&self, operator: Token, right: Expr) -> Result<LoxValue, RuntimeError> {
+    fn evaluate_unary_op(
+        &mut self,
+        operator: Token,
+        right: Expr,
+    ) -> Result<LoxValue, RuntimeError> {
         let right = self.evaluate(right)?;
 
         match operator.token_type {
@@ -111,7 +127,7 @@ impl<'a> Interpreter<'a> {
     }
 
     fn evaluate_binary_op(
-        &self,
+        &mut self,
         left: Expr,
         operator: Token,
         right: Expr,
@@ -175,5 +191,79 @@ impl<'a> Interpreter<'a> {
             token,
             String::from("Operands must be numbers"),
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Interpreter;
+    use crate::{lox::Lox, parser::Parser, scanner::Scanner};
+
+    #[test]
+    fn test_shadowing() {
+        let source = r#"
+            let a = 1;
+            {
+                let a = a + 2;
+                print a; // 3
+            }
+        "#;
+        let mut lox = Lox::new(false);
+        let mut output = Vec::new();
+        lox.run(source, &mut output);
+        let output = String::from_utf8(output).expect("Not UTF-8");
+        assert_eq!("3", output.trim());
+    }
+
+    #[test]
+    fn test_block() {
+        let source = r#"
+            let a = "global a";
+            let b = "global b";
+            let c = "global c";
+            {
+                let a = "outer a";
+                let b = "outer b";
+                {
+                    let a = "inner a";
+                    print a;
+                    print b;
+                    print c;
+                }
+                print a;
+                print b;
+                print c;
+            }
+            print a;
+            print b;
+            print c;
+        "#;
+        let mut lox = Lox::new(false);
+        let mut output = Vec::new();
+        lox.run(source, &mut output);
+        let output = String::from_utf8(output).expect("Not UTF-8");
+        let mut output = output.split('\n').into_iter();
+
+        assert_eq!("inner a", output.next().unwrap());
+        assert_eq!("outer b", output.next().unwrap());
+        assert_eq!("global c", output.next().unwrap());
+        assert_eq!("outer a", output.next().unwrap());
+        assert_eq!("outer b", output.next().unwrap());
+        assert_eq!("global c", output.next().unwrap());
+        assert_eq!("global a", output.next().unwrap());
+        assert_eq!("global b", output.next().unwrap());
+        assert_eq!("global c", output.next().unwrap());
+    }
+
+    #[test]
+    fn test_operator_precedence() {
+        let source = r#"
+            print 2 + 3 * 4 * 5 - 6;
+        "#;
+        let mut lox = Lox::new(false);
+        let mut output = Vec::new();
+        lox.run(source, &mut output);
+        let output = String::from_utf8(output).expect("Not UTF-8");
+        assert_eq!("56", output.trim());
     }
 }

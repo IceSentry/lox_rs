@@ -1,92 +1,8 @@
-use crate::Lox;
-use derive_new::*;
-use fmt::Display;
-use std::fmt;
-use std::fmt::*;
-
-#[rustfmt::skip]
-#[allow(non_camel_case_types)]
-#[derive(Debug, PartialEq, Clone)]
-pub enum TokenType {
-    // Single-character tokens
-    LEFT_PAREN, RIGHT_PAREN, LEFT_BRACE, RIGHT_BRACE, 
-    COMMA, DOT, MINUS, PLUS, SLASH, STAR, SEMICOLON,
-
-    // One or two char tokens
-    BANG, BANG_EQUAL,
-    EQUAL, EQUAL_EQUAL,
-    GREATER, GREATER_EQUAL,                          
-    LESS, LESS_EQUAL,
-
-    // Literals
-    IDENTIFIER, STRING, NUMBER,
-
-    //Keywords
-    AND, CLASS, ELSE, FALSE, FUN, FOR, IF, NIL, OR,
-    PRINT, RETURN, SUPER, THIS, TRUE, VAR, WHILE,
-
-    EOF
-}
-
-#[derive(Debug, Clone)]
-pub enum Literal {
-    Identifier(String),
-    String(String),
-    Number(f64),
-    FALSE,
-    TRUE,
-    Nil,
-}
-
-impl Display for Literal {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        match self {
-            Literal::Number(value) => write!(f, "{}", value),
-            Literal::String(value) => write!(f, "{}", value),
-            Literal::Identifier(identifier) => write!(f, "{}", identifier),
-            Literal::FALSE => write!(f, "false"),
-            Literal::TRUE => write!(f, "true"),
-            Literal::Nil => write!(f, "nil"),
-        }
-    }
-}
-
-#[derive(new, Debug, Clone)]
-pub struct Token {
-    pub token_type: TokenType,
-    pub lexeme: String,
-    pub literal: Option<Literal>,
-    pub position: Position,
-}
-
-impl Display for Token {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.lexeme)
-    }
-}
-
-#[derive(new, Clone, Copy, Debug)]
-pub struct Position {
-    pub line: usize,
-    pub column: usize,
-}
-
-impl Position {
-    fn increment_line(&mut self) {
-        self.line += 1;
-        self.column = 1;
-    }
-
-    fn increment_column(&mut self) {
-        self.column += 1;
-    }
-}
-
-impl fmt::Display for Position {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ln {} col {}", self.line, self.column)
-    }
-}
+use crate::{
+    literal::Literal,
+    token::{Position, Token, TokenType},
+    Lox,
+};
 
 pub struct Scanner<'a> {
     source: String,
@@ -350,7 +266,7 @@ impl<'a> Scanner<'a> {
             "super" => (SUPER, None),
             "this" => (THIS, None),
             "true" => (TRUE, Some(Literal::TRUE)),
-            "var" => (VAR, None),
+            "let" => (LET, None),
             "while" => (WHILE, None),
             _ => (
                 IDENTIFIER,
