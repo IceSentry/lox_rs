@@ -23,12 +23,13 @@ pub struct Parser<'a> {
 /// let_decl        -> "let" IDENTIFIER ( "=" expression )? ";" ;
 ///
 /// statement       -> print_stmt
-///                  | expr_stmt
-///                  | block ;
-///
-/// block           -> "{" declaration* "}" ;
+///                  | block
+///                  | if_stmt
+///                  | expr_stmt ;
 ///
 /// print_stmt      -> "print" expression ";" ;
+/// block           -> "{" declaration* "}" ;
+/// if_stmt         -> "if" expression "{" statement "}" ( "else" "{" statement "}" )? ;
 /// expr_stmt       -> expression ";"
 ///
 /// expression      -> assignment ;
@@ -105,18 +106,21 @@ impl<'a> Parser<'a> {
 
     /// statement  -> print_stmt
     ///             | block
+    ///             | if_stmt
     ///             | expr_stmt ;
     fn statement(&mut self) -> Result<Stmt, ParserError> {
         if self.match_tokens(&vec![TokenType::PRINT]) {
             self.print_statement()
         } else if self.match_tokens(&vec![TokenType::LEFT_BRACE]) {
             Ok(Stmt::Block(self.block()?))
+        } else if self.match_tokens(&vec![TokenType::IF]) {
+            self.if_statement()
         } else {
             self.expression_statement()
         }
     }
 
-    /// print_stmt → "print" expression ";" ;
+    /// print_stmt -> "print" expression ";" ;
     fn print_statement(&mut self) -> Result<Stmt, ParserError> {
         // TODO remove this when we have a standard library
         let value = self.expression();
@@ -133,7 +137,27 @@ impl<'a> Parser<'a> {
         Ok(statements)
     }
 
-    /// expr_stmt  → expression ";"
+    /// if_stmt -> "if" expression block ( "else" block )? ;
+    fn if_statement(&mut self) -> Result<Stmt, ParserError> {
+        let condition = self.expression()?;
+        self.consume(TokenType::LEFT_BRACE, "Expected '{' after condition")?;
+
+        let then_branch = Stmt::Block(self.block()?);
+        println!("parsed then_branch\n{}", then_branch);
+
+        let else_branch = if self.match_tokens(&vec![TokenType::ELSE]) {
+            println!("parsed ELSE");
+            let block = self.statement()?;
+            println!("parsed else_branch\n{}", block);
+            Some(Box::new(block))
+        } else {
+            None
+        };
+
+        Ok(Stmt::If(condition, Box::new(then_branch), else_branch))
+    }
+
+    /// expr_stmt  -> expression ";"
     fn expression_statement(&mut self) -> Result<Stmt, ParserError> {
         // TODO support expression with no ;
         let expr = self.expression();

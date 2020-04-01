@@ -13,7 +13,7 @@ impl Display for Literal {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         match self {
             Literal::Number(value) => write!(f, "{}", value),
-            Literal::String(value) => write!(f, "{}", value),
+            Literal::String(value) => write!(f, "\"{}\"", value),
             Literal::FALSE => write!(f, "false"),
             Literal::TRUE => write!(f, "true"),
             Literal::Nil => write!(f, "nil"),

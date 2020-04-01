@@ -83,6 +83,15 @@ where
                 statements,
                 Environment::new(Rc::new(RefCell::new(self.lox.environment.clone()))),
             ),
+            Stmt::If(condition, then_branch, else_branch) => {
+                if self.evaluate(condition)?.is_truthy() {
+                    self.execute(*then_branch)
+                } else if let Some(else_branch) = else_branch {
+                    self.execute(*else_branch)
+                } else {
+                    Ok(())
+                }
+            }
         }
     }
 
@@ -202,6 +211,16 @@ where
 mod tests {
     use crate::lox::Lox;
 
+    fn assert_output(source: &str, expected: &str) {
+        let mut lox = Lox::new(false);
+        let mut output = Vec::new();
+        lox.run(source, &mut output);
+        assert_eq!(
+            String::from_utf8(output).expect("Not UTF-8").trim(),
+            expected,
+        );
+    }
+
     #[test]
     fn test_shadowing() {
         let source = r#"
@@ -211,11 +230,7 @@ mod tests {
                 print a; // 3
             }
         "#;
-        let mut lox = Lox::new(false);
-        let mut output = Vec::new();
-        lox.run(source, &mut output);
-        let output = String::from_utf8(output).expect("Not UTF-8");
-        assert_eq!("3", output.trim());
+        assert_output(source, "3");
     }
 
     #[test]
@@ -263,10 +278,42 @@ mod tests {
         let source = r#"
             print 2 + 3 * 4 * 5 - 6;
         "#;
-        let mut lox = Lox::new(false);
-        let mut output = Vec::new();
-        lox.run(source, &mut output);
-        let output = String::from_utf8(output).expect("Not UTF-8");
-        assert_eq!("56", output.trim());
+        assert_output(source, "56");
+    }
+
+    #[test]
+    fn test_if() {
+        let source = r#"
+            if true {
+                print "then_branch"; // <--
+            } else if false {
+                print "else_if_branch";
+            } else {
+                print "else_branch";
+            }
+        "#;
+        assert_output(source, "then_branch");
+
+        let source = r#"
+            if false {
+                print "then_branch";
+            } else if true {
+                print "else_if_branch"; // <--
+            } else {
+                print "else_branch";
+            }
+        "#;
+        assert_output(source, "else_if_branch");
+
+        let source = r#"
+            if false {
+                print "then_branch";
+            } else if false {
+                print "else_if_branch";
+            } else {
+                print "else_branch"; // <--
+            }
+        "#;
+        assert_output(source, "else_branch");
     }
 }
