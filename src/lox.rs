@@ -11,7 +11,8 @@ use std::fmt::*;
 
 #[derive(PartialEq, Clone)]
 pub enum LoxValue {
-    Nil,
+    Nil,       // TODO implement Option<T> and remove nil
+    Undefined, // This is used as a flag, there are no corresponding literal
     Number(f64),
     Boolean(bool),
     String(String),
@@ -19,19 +20,21 @@ pub enum LoxValue {
 
 impl LoxValue {
     pub fn is_truthy(self) -> bool {
+        use LoxValue::*;
         match self {
-            LoxValue::Nil => false,
-            LoxValue::Boolean(value) => value,
+            Nil | Undefined => false,
+            Boolean(value) => value,
             _ => true,
         }
     }
 
     pub fn is_equal(self, other: LoxValue) -> bool {
+        use LoxValue::*;
         match (self, other) {
-            (LoxValue::Nil, LoxValue::Nil) => true,
-            (LoxValue::Number(a), LoxValue::Number(b)) => a.approx_eq(b, F64Margin::default()),
-            (LoxValue::String(a), LoxValue::String(b)) => a == b,
-            (LoxValue::Boolean(a), LoxValue::Boolean(b)) => a == b,
+            (Nil, Nil) => true,
+            (Number(a), Number(b)) => a.approx_eq(b, F64Margin::default()),
+            (String(a), String(b)) => a == b,
+            (Boolean(a), Boolean(b)) => a == b,
             _ => false, // no type coercion
         }
     }
@@ -39,11 +42,13 @@ impl LoxValue {
 
 impl Display for LoxValue {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        use LoxValue::*;
         match self {
-            LoxValue::Nil => write!(f, "nil"),
-            LoxValue::Number(value) => write!(f, "{}", value),
-            LoxValue::Boolean(value) => write!(f, "{}", value),
-            LoxValue::String(value) => write!(f, "{}", value),
+            Nil => write!(f, "nil"),
+            Undefined => write!(f, "undefined"),
+            Number(value) => write!(f, "{}", value),
+            Boolean(value) => write!(f, "{}", value),
+            String(value) => write!(f, "{}", value),
         }
     }
 }

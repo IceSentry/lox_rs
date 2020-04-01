@@ -44,7 +44,12 @@ where
             Expr::Grouping(expr) => self.evaluate(*expr),
             Expr::Literal(literal) => self.evaluate_literal(literal),
             Expr::Unary(operator, right) => self.evaluate_unary_op(operator, *right),
-            Expr::Variable(variable) => self.lox.environment.get(variable),
+            Expr::Variable(token) => match self.lox.environment.get(&token)? {
+                LoxValue::Undefined => {
+                    self.error(token.clone(), &format!("{} is undefined!", token.lexeme))
+                }
+                value => Ok(value),
+            },
             Expr::Assign(token, value_expr) => {
                 let value = self.evaluate(*value_expr)?;
                 self.lox.environment.assign(token, value.clone())
@@ -69,7 +74,7 @@ where
             Stmt::Let(token, initializer) => {
                 let value = match *initializer {
                     Some(inializer_value) => self.evaluate(inializer_value)?,
-                    None => LoxValue::Nil, // should be runtime error
+                    None => LoxValue::Nil,
                 };
                 self.lox.environment.define(token.lexeme, value);
                 Ok(())
@@ -196,8 +201,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::Interpreter;
-    use crate::{lox::Lox, parser::Parser, scanner::Scanner};
+    use crate::lox::Lox;
 
     #[test]
     fn test_shadowing() {

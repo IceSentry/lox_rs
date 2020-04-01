@@ -19,7 +19,7 @@ impl Environment {
         self.values.insert(name, value);
     }
 
-    pub fn get(&self, token: Token) -> Result<LoxValue, RuntimeError> {
+    pub fn get(&self, token: &Token) -> Result<LoxValue, RuntimeError> {
         match self.values.get(token.lexeme.as_str()) {
             Some(value) => Ok(value.clone()),
             None => match &self.enclosing {
