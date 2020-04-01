@@ -100,7 +100,7 @@ impl<'a> Parser<'a> {
             TokenType::SEMICOLON,
             "Expected ';' after variable declaration",
         )?;
-        Ok(Stmt::Let(name, Box::new(initializer)))
+        Ok(Stmt::Let(name, initializer))
     }
 
     /// statement  -> print_stmt
@@ -121,7 +121,7 @@ impl<'a> Parser<'a> {
         // TODO remove this when we have a standard library
         let value = self.expression();
         self.consume(TokenType::SEMICOLON, "Expect ';' after value")?;
-        value.and_then(|value| Ok(Stmt::Print(Box::new(value))))
+        value.and_then(|value| Ok(Stmt::Print(value)))
     }
 
     fn block(&mut self) -> Result<Vec<Box<Stmt>>, ParserError> {
@@ -138,7 +138,7 @@ impl<'a> Parser<'a> {
         // TODO support expression with no ;
         let expr = self.expression();
         self.consume(TokenType::SEMICOLON, "Expect ';' after expression")?;
-        expr.and_then(|expr| Ok(Stmt::Expression(Box::new(expr))))
+        expr.and_then(|expr| Ok(Stmt::Expression(expr)))
     }
 
     /// expression -> assignment ;

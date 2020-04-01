@@ -60,19 +60,19 @@ where
     fn execute(&mut self, stmt: Stmt) -> Result<(), RuntimeError> {
         match stmt {
             Stmt::Expression(expr) => {
-                let value = self.evaluate(*expr)?;
+                let value = self.evaluate(expr)?;
                 if self.lox.debug || self.lox.is_repl {
                     println!("=> {}", value);
                 }
                 Ok(())
             }
             Stmt::Print(expr) => {
-                let value = self.evaluate(*expr)?;
+                let value = self.evaluate(expr)?;
                 writeln!(self.output, "{}", value).expect("failed to write to ouput");
                 Ok(())
             }
             Stmt::Let(token, initializer) => {
-                let value = match *initializer {
+                let value = match initializer {
                     Some(inializer_value) => self.evaluate(inializer_value)?,
                     None => LoxValue::Nil,
                 };

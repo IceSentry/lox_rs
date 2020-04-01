@@ -2,9 +2,9 @@ use crate::{expr::Expr, token::Token};
 use std::fmt::*;
 
 pub enum Stmt {
-    Expression(Box<Expr>),
-    Print(Box<Expr>),
-    Let(Token, Box<Option<Expr>>),
+    Expression(Expr),
+    Print(Expr),
+    Let(Token, Option<Expr>),
     Block(Vec<Box<Stmt>>),
 }
 
