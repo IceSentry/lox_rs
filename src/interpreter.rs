@@ -76,7 +76,7 @@ where
                     Some(inializer_value) => self.evaluate(inializer_value)?,
                     None => LoxValue::Nil,
                 };
-                self.lox.environment.define(token.lexeme, value);
+                self.lox.environment.declare(token.lexeme, value);
                 Ok(())
             }
             Stmt::Block(statements) => self.execute_block(

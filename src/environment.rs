@@ -15,7 +15,7 @@ impl Environment {
         }
     }
 
-    pub fn define(&mut self, name: String, value: LoxValue) {
+    pub fn declare(&mut self, name: String, value: LoxValue) {
         self.values.insert(name, value);
     }
 
@@ -26,7 +26,7 @@ impl Environment {
                 Some(enclosing) => enclosing.borrow().get(token),
                 None => Err(RuntimeError(
                     token.clone(),
-                    format!("Undefined variable '{}'", token.lexeme),
+                    format!("Undeclared variable '{}'", token.lexeme),
                 )),
             },
         }
@@ -39,7 +39,7 @@ impl Environment {
                 Some(enclosing) => enclosing.borrow_mut().assign(token, value),
                 None => Err(RuntimeError(
                     token.clone(),
-                    format!("Undefined variable '{}'", token.lexeme),
+                    format!("Undeclared variable '{}'", token.lexeme),
                 )),
             },
         }
