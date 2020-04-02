@@ -25,12 +25,14 @@ pub struct Parser<'a> {
 /// statement       -> print_stmt
 ///                  | block
 ///                  | if_stmt
+///                  | while_stmt
 ///                  | expr_stmt ;
 ///
 /// print_stmt      -> "print" expression ";" ;
 /// block           -> "{" declaration* "}" ;
 /// if_stmt         -> "if" expression "{" statement "}" ( "else" "{" statement "}" )? ;
-/// expr_stmt       -> expression ";"
+/// while_stmt      -> "while" "(" expression ")" statement ;
+/// expr_stmt       -> expression ";" ;
 ///
 /// expression      -> assignment ;
 ///
@@ -118,9 +120,20 @@ impl<'a> Parser<'a> {
             Ok(Stmt::Block(self.block()?))
         } else if self.match_tokens(&vec![TokenType::IF]) {
             self.if_statement()
+        } else if self.match_tokens(&vec![TokenType::WHILE]) {
+            self.while_statement()
         } else {
             self.expression_statement()
         }
+    }
+
+    // TODO use "while" expression block instead of "while" "(" expression ")" statement ;
+    fn while_statement(&mut self) -> Result<Stmt, ParserError> {
+        self.consume(TokenType::LEFT_PAREN, "Expect '(' after 'while'.")?;
+        let condition = self.expression()?;
+        self.consume(TokenType::RIGHT_PAREN, "Expect ')' after condition.")?;
+        let body = self.statement()?;
+        Ok(Stmt::While(condition, Box::new(body)))
     }
 
     /// print_stmt -> "print" expression ";" ;
@@ -131,6 +144,7 @@ impl<'a> Parser<'a> {
         value.and_then(|value| Ok(Stmt::Print(value)))
     }
 
+    /// block -> "{" declaration* "}" ;
     fn block(&mut self) -> Result<Vec<Box<Stmt>>, ParserError> {
         let mut statements = Vec::new();
         while !self.check(&TokenType::RIGHT_BRACE) && !self.is_at_end() {
@@ -229,7 +243,6 @@ impl<'a> Parser<'a> {
     /// comparison -> addition ( ( ">" | ">=" | "<" | "<=" ) addition )* ;
     fn comparison(&mut self) -> Result<Expr, ParserError> {
         let mut expr = self.addition()?;
-
         use TokenType::*;
         while self.match_tokens(&vec![GREATER, GREATER_EQUAL, LESS, LESS_EQUAL]) {
             let operator = self.previous().clone();
@@ -242,7 +255,6 @@ impl<'a> Parser<'a> {
     /// addition -> multiplication ( ( "-" | "+" ) multiplication )* ;
     fn addition(&mut self) -> Result<Expr, ParserError> {
         let mut expr = self.multiplication()?;
-
         use TokenType::*;
         while self.match_tokens(&vec![MINUS, PLUS]) {
             let operator = self.previous().clone();
@@ -255,7 +267,6 @@ impl<'a> Parser<'a> {
     /// multiplication -> unary ( ( "/" | "*" ) unary )* ;
     fn multiplication(&mut self) -> Result<Expr, ParserError> {
         let mut expr = self.unary()?;
-
         use TokenType::*;
         while self.match_tokens(&vec![SLASH, STAR]) {
             let operator = self.previous().clone();

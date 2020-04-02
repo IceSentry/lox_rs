@@ -105,6 +105,12 @@ impl<'a> Interpreter<'a> {
                     Ok(())
                 }
             }
+            Stmt::While(condition, body) => {
+                while self.evaluate(&condition, env)?.is_truthy() {
+                    self.execute(body, env)?;
+                }
+                Ok(())
+            }
         }
     }
 
@@ -336,5 +342,18 @@ mod tests {
         "#;
 
         assert_output_list(source, vec!["hi", "yes"]);
+    }
+
+    #[test]
+    fn test_while() {
+        let source = r#"
+            let i = 0;
+            while (i < 5) {
+                print i;
+                i = i + 1;
+            }
+        "#;
+
+        assert_output_list(source, vec!["0", "1", "2", "3", "4"]);
     }
 }
