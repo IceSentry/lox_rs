@@ -2,28 +2,36 @@ use crate::{interpreter::RuntimeError, lox::LoxValue, token::Token};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 #[derive(Default, Clone)]
-pub struct Environment {
+pub struct EnvironmentData {
     values: HashMap<String, LoxValue>,
-    enclosing: Option<Rc<RefCell<Environment>>>,
+    enclosing: Option<Environment>,
+}
+
+#[derive(Default, Clone)]
+pub struct Environment {
+    pub data: Rc<RefCell<EnvironmentData>>,
 }
 
 impl Environment {
-    pub fn new(enclosing: Rc<RefCell<Environment>>) -> Self {
+    pub fn new(enclosing: &Environment) -> Self {
         Environment {
-            values: Default::default(),
-            enclosing: Some(enclosing),
+            data: Rc::new(RefCell::new(EnvironmentData {
+                values: Default::default(),
+                enclosing: Some(enclosing.clone()),
+            })),
         }
     }
 
-    pub fn declare(&mut self, name: String, value: LoxValue) {
-        self.values.insert(name, value);
+    pub fn declare(&self, name: &String, value: LoxValue) {
+        self.data.borrow_mut().values.insert(name.clone(), value);
     }
 
     pub fn get(&self, token: &Token) -> Result<LoxValue, RuntimeError> {
-        match self.values.get(token.lexeme.as_str()) {
+        let data = self.data.borrow();
+        match data.values.get(token.lexeme.as_str()) {
             Some(value) => Ok(value.clone()),
-            None => match &self.enclosing {
-                Some(enclosing) => enclosing.borrow().get(token),
+            None => match data.enclosing {
+                Some(ref enclosing) => enclosing.get(token),
                 None => Err(RuntimeError(
                     token.clone(),
                     format!("Undeclared variable '{}'", token.lexeme),
@@ -32,11 +40,13 @@ impl Environment {
         }
     }
 
-    pub fn assign(&mut self, token: Token, value: LoxValue) -> Result<LoxValue, RuntimeError> {
-        match self.values.insert(token.lexeme.clone(), value.clone()) {
+    pub fn assign(&self, token: &Token, value: LoxValue) -> Result<LoxValue, RuntimeError> {
+        let mut data = self.data.borrow_mut();
+
+        match data.values.insert(token.lexeme.clone(), value.clone()) {
             Some(_) => Ok(value),
-            None => match &self.enclosing {
-                Some(enclosing) => enclosing.borrow_mut().assign(token, value),
+            None => match data.enclosing {
+                Some(ref enclosing) => enclosing.assign(token, value),
                 None => Err(RuntimeError(
                     token.clone(),
                     format!("Undeclared variable '{}'", token.lexeme),

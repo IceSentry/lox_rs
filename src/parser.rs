@@ -1,8 +1,8 @@
 use crate::{
     expr::Expr,
+    logger::Logger,
     stmt::Stmt,
     token::{Token, TokenType},
-    Lox,
 };
 
 pub struct ParserError(String);
@@ -10,7 +10,7 @@ pub struct ParserError(String);
 pub struct Parser<'a> {
     tokens: Vec<Token>,
     current: usize,
-    lox: &'a mut Lox,
+    logger: &'a mut dyn Logger,
 }
 
 /// This parses expressions and statements according to this grammar:
@@ -56,11 +56,11 @@ pub struct Parser<'a> {
 ///                  | "(" expression ")"
 ///                  | IDENTIFIER ;
 impl<'a> Parser<'a> {
-    pub fn new(tokens: Vec<Token>, lox: &'a mut Lox) -> Self {
+    pub fn new(tokens: Vec<Token>, logger: &'a mut dyn Logger) -> Self {
         Parser {
             tokens,
             current: 0,
-            lox,
+            logger,
         }
     }
 
@@ -367,7 +367,7 @@ impl<'a> Parser<'a> {
 
     fn error_token(&mut self, token: &Token, message: &str) -> ParserError {
         let message = String::from(message);
-        self.lox.error(token, message.clone());
+        self.logger.error(token, message.clone());
         ParserError(message)
     }
 }

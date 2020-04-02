@@ -1,7 +1,7 @@
 use crate::{
     literal::Literal,
+    logger::Logger,
     token::{Position, Token, TokenType},
-    Lox,
 };
 
 pub struct Scanner<'a> {
@@ -10,7 +10,7 @@ pub struct Scanner<'a> {
     start: usize,
     current: usize,
     position: Position,
-    lox: &'a mut Lox,
+    logger: &'a mut dyn Logger,
 }
 
 fn is_alphanumeric(c: char) -> bool {
@@ -18,14 +18,14 @@ fn is_alphanumeric(c: char) -> bool {
 }
 
 impl<'a> Scanner<'a> {
-    pub fn new(lox: &'a mut Lox, source: String) -> Self {
+    pub fn new(logger: &'a mut dyn Logger, source: String) -> Self {
         Scanner {
             source,
             tokens: Vec::new(),
             start: 0,
             current: 0,
             position: Position { line: 1, column: 1 },
-            lox,
+            logger,
         }
     }
 
@@ -101,7 +101,7 @@ impl<'a> Scanner<'a> {
             c if c.is_ascii_digit() => Some(self.number()),
             c if is_alphanumeric(c) => Some(self.identifier()),
             _ => {
-                self.lox.report_error(
+                self.logger.report_error(
                     self.position,
                     "Scanner",
                     format!("Unexpected character \"{}\"", c),
@@ -183,7 +183,7 @@ impl<'a> Scanner<'a> {
         }
 
         if self.is_at_end() {
-            self.lox.report_error(
+            self.logger.report_error(
                 self.position,
                 "Scanner",
                 String::from("Unterminated string"),
@@ -232,7 +232,7 @@ impl<'a> Scanner<'a> {
                     return None;
                 }
                 if self.is_at_end() {
-                    self.lox.report_error(
+                    self.logger.report_error(
                         self.position,
                         "Scanner",
                         String::from("Unterminated block comment"),

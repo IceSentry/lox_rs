@@ -2,60 +2,56 @@ use crate::{
     environment::Environment,
     expr::Expr,
     literal::Literal,
+    logger::Logger,
     lox::LoxValue,
     stmt::Stmt,
     token::{Token, TokenType},
-    Lox,
 };
-use std::{cell::RefCell, rc::Rc};
+
+// TODO:
+// * Take a custom logger?
+// * use visitor pattern
 
 pub struct RuntimeError(pub Token, pub String);
 
-pub struct Interpreter<'a, W>
-where
-    W: std::io::Write,
-{
-    lox: &'a mut Lox,
-    output: W,
+pub struct Interpreter<'a> {
+    logger: &'a mut dyn Logger,
 }
 
-impl<'a, W> Interpreter<'a, W>
-where
-    W: std::io::Write,
-{
-    pub fn new(lox: &'a mut Lox, output: W) -> Self {
-        Interpreter { lox, output }
+impl<'a> Interpreter<'a> {
+    pub fn new(logger: &'a mut dyn Logger) -> Self {
+        Interpreter { logger }
     }
 
-    pub fn interpret(&mut self, statements: Vec<Stmt>) {
+    pub fn interpret(&mut self, statements: &Vec<Stmt>, env: &mut Environment) {
         for statement in statements {
-            if self.lox.debug {
-                println!("DEBUG {}", statement);
-            }
-            if let Err(error) = self.execute(statement) {
-                self.lox.runtime_error(error);
+            self.logger.println_debug(format!("{}", statement));
+            if let Err(error) = self.execute(statement, env) {
+                self.logger.runtime_error(error);
             }
         }
     }
 
-    fn evaluate(&mut self, expr: Expr) -> Result<LoxValue, RuntimeError> {
+    fn evaluate(&mut self, expr: &Expr, env: &mut Environment) -> Result<LoxValue, RuntimeError> {
         match expr {
-            Expr::Binary(left, operator, right) => self.evaluate_binary_op(*left, operator, *right),
-            Expr::Grouping(expr) => self.evaluate(*expr),
+            Expr::Binary(left, operator, right) => {
+                self.evaluate_binary_op(left, operator, right, env)
+            }
+            Expr::Grouping(expr) => self.evaluate(expr, env),
             Expr::Literal(literal) => self.evaluate_literal(literal),
-            Expr::Unary(operator, right) => self.evaluate_unary_op(operator, *right),
-            Expr::Variable(token) => match self.lox.environment.get(&token)? {
+            Expr::Unary(operator, right) => self.evaluate_unary_op(operator, right, env),
+            Expr::Variable(token) => match env.get(&token)? {
                 LoxValue::Undefined => {
-                    self.error(token.clone(), &format!("{} is undefined!", token.lexeme))
+                    self.error(token, &format!("{} is undefined!", token.lexeme))
                 }
                 value => Ok(value),
             },
             Expr::Assign(token, value_expr) => {
-                let value = self.evaluate(*value_expr)?;
-                self.lox.environment.assign(token, value.clone())
+                let value = self.evaluate(&value_expr, env)?;
+                env.assign(token, value)
             }
             Expr::Logical(left, operator, right) => {
-                let left = self.evaluate(*left)?;
+                let left = self.evaluate(left, env)?;
                 match operator.token_type {
                     TokenType::OR => {
                         if left.is_truthy() {
@@ -68,43 +64,43 @@ where
                         }
                     }
                 };
-
-                return self.evaluate(*right);
+                self.evaluate(right, env)
             }
         }
     }
 
-    fn execute(&mut self, stmt: Stmt) -> Result<(), RuntimeError> {
+    fn execute(&mut self, stmt: &Stmt, env: &mut Environment) -> Result<(), RuntimeError> {
         match stmt {
             Stmt::Expression(expr) => {
-                let value = self.evaluate(expr)?;
-                if self.lox.debug || self.lox.is_repl {
-                    println!("=> {}", value);
-                }
+                let value = self.evaluate(&expr, env)?;
+                self.logger.println_repl(format!("{}", value));
                 Ok(())
             }
             Stmt::Print(expr) => {
-                let value = self.evaluate(expr)?;
-                writeln!(self.output, "{}", value).expect("failed to write to ouput");
+                let value = self.evaluate(&expr, env)?;
+                self.logger.println(format!("{}", value));
                 Ok(())
             }
             Stmt::Let(token, initializer) => {
                 let value = match initializer {
-                    Some(inializer_value) => self.evaluate(inializer_value)?,
+                    Some(inializer_value) => self.evaluate(&inializer_value, env)?,
                     None => LoxValue::Nil,
                 };
-                self.lox.environment.declare(token.lexeme, value);
+                env.declare(&token.lexeme, value);
                 Ok(())
             }
-            Stmt::Block(statements) => self.execute_block(
-                statements,
-                Environment::new(Rc::new(RefCell::new(self.lox.environment.clone()))),
-            ),
+            Stmt::Block(statements) => {
+                let mut environment = Environment::new(&env);
+                for stmt in statements {
+                    self.execute(stmt, &mut environment)?;
+                }
+                Ok(())
+            }
             Stmt::If(condition, then_branch, else_branch) => {
-                if self.evaluate(condition)?.is_truthy() {
-                    self.execute(*then_branch)
+                if self.evaluate(&condition, env)?.is_truthy() {
+                    self.execute(then_branch, env)
                 } else if let Some(else_branch) = else_branch {
-                    self.execute(*else_branch)
+                    self.execute(else_branch, env)
                 } else {
                     Ok(())
                 }
@@ -112,27 +108,10 @@ where
         }
     }
 
-    fn execute_block(
-        &mut self,
-        statements: Vec<Box<Stmt>>,
-        environment: Environment,
-    ) -> Result<(), RuntimeError> {
-        let previous = self.lox.environment.clone();
-        self.lox.environment = environment;
-
-        for stmt in statements {
-            self.execute(*stmt)?;
-        }
-
-        self.lox.environment = previous;
-
-        Ok(())
-    }
-
-    fn evaluate_literal(&self, literal: Literal) -> Result<LoxValue, RuntimeError> {
+    fn evaluate_literal(&self, literal: &Literal) -> Result<LoxValue, RuntimeError> {
         Ok(match literal {
-            Literal::String(value) => LoxValue::String(value),
-            Literal::Number(value) => LoxValue::Number(value),
+            Literal::String(value) => LoxValue::String(value.clone()),
+            Literal::Number(value) => LoxValue::Number(*value),
             Literal::FALSE => LoxValue::Boolean(false),
             Literal::TRUE => LoxValue::Boolean(true),
             Literal::Nil => LoxValue::Nil,
@@ -141,10 +120,11 @@ where
 
     fn evaluate_unary_op(
         &mut self,
-        operator: Token,
-        right: Expr,
+        operator: &Token,
+        right: &Expr,
+        env: &mut Environment,
     ) -> Result<LoxValue, RuntimeError> {
-        let right = self.evaluate(right)?;
+        let right = self.evaluate(&right, env)?;
 
         match operator.token_type {
             TokenType::BANG => Ok(LoxValue::Boolean(!right.is_truthy())),
@@ -158,12 +138,13 @@ where
 
     fn evaluate_binary_op(
         &mut self,
-        left: Expr,
-        operator: Token,
-        right: Expr,
+        left: &Expr,
+        operator: &Token,
+        right: &Expr,
+        env: &mut Environment,
     ) -> Result<LoxValue, RuntimeError> {
-        let left = self.evaluate(left)?;
-        let right = self.evaluate(right)?;
+        let left = self.evaluate(&left, env)?;
+        let right = self.evaluate(&right, env)?;
 
         use LoxValue::*;
         match operator.token_type {
@@ -212,13 +193,13 @@ where
         }
     }
 
-    fn error(&self, token: Token, message: &str) -> Result<LoxValue, RuntimeError> {
-        Err(RuntimeError(token, String::from(message)))
+    fn error(&self, token: &Token, message: &str) -> Result<LoxValue, RuntimeError> {
+        Err(RuntimeError(token.clone(), String::from(message)))
     }
 
-    fn error_number_operand(&self, token: Token) -> Result<LoxValue, RuntimeError> {
+    fn error_number_operand(&self, token: &Token) -> Result<LoxValue, RuntimeError> {
         Err(RuntimeError(
-            token,
+            token.clone(),
             String::from("Operands must be numbers"),
         ))
     }
@@ -226,12 +207,19 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::lox::Lox;
+    use crate::{logger::test::TestLogger, lox::Lox};
+
+    fn lox_run(source: &str) -> Vec<u8> {
+        let mut output = Vec::new();
+        let mut logger = TestLogger::new(&mut output);
+        let mut lox = Lox::new(&mut logger);
+        let result = lox.run(source);
+        assert!(result.is_ok());
+        output.clone()
+    }
 
     fn assert_output(source: &str, expected: &str) {
-        let mut lox = Lox::new(false);
-        let mut output = Vec::new();
-        lox.run(source, &mut output);
+        let output = lox_run(source);
         assert_eq!(
             String::from_utf8(output).expect("Not UTF-8").trim(),
             expected,
@@ -239,9 +227,7 @@ mod tests {
     }
 
     fn assert_output_list(source: &str, expected: Vec<&str>) {
-        let mut lox = Lox::new(false);
-        let mut output = Vec::new();
-        lox.run(source, &mut output);
+        let output = lox_run(source);
         let output = String::from_utf8(output).expect("Not UTF-8");
         for (i, result) in output.split('\n').into_iter().enumerate() {
             if !result.is_empty() {
@@ -271,8 +257,10 @@ mod tests {
             {
                 let a = "outer a";
                 let b = "outer b";
+                let d = "outer d";
                 {
                     let a = "inner a";
+                    d = "inner d";
                     print a;
                     print b;
                     print c;
@@ -280,6 +268,7 @@ mod tests {
                 print a;
                 print b;
                 print c;
+                print d;
             }
             print a;
             print b;
@@ -289,8 +278,8 @@ mod tests {
         assert_output_list(
             source,
             vec![
-                "inner a", "outer b", "global c", "outer a", "outer b", "global c", "global a",
-                "global b", "global c",
+                "inner a", "outer b", "global c", "outer a", "outer b", "global c", "inner d",
+                "global a", "global b", "global c",
             ],
         )
     }
