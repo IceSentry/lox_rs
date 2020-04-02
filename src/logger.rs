@@ -62,28 +62,3 @@ impl Logger for DefaultLogger {
         }
     }
 }
-
-#[cfg(test)]
-pub mod test {
-    use crate::logger::Logger;
-    use std::io::Write;
-
-    pub struct TestLogger<'a> {
-        pub output: &'a mut Vec<u8>,
-    }
-
-    impl<'a> TestLogger<'a> {
-        pub fn new(output: &'a mut Vec<u8>) -> Self {
-            TestLogger { output }
-        }
-    }
-
-    impl<'a> Logger for TestLogger<'a> {
-        fn println(&mut self, message: String) {
-            writeln!(self.output, "{}", message).expect("Failed to write");
-        }
-
-        fn println_debug(&mut self, _message: String) {}
-        fn println_repl(&mut self, _message: String) {}
-    }
-}
