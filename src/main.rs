@@ -12,37 +12,41 @@ mod token;
 #[cfg(test)]
 mod tests;
 
-use std::env;
-use std::fs;
-use std::io;
-use std::io::prelude::*;
+use std::{
+    fs,
+    io::{self, prelude::*},
+};
 
-use logger::DefaultLogger;
+use structopt::StructOpt;
+
+use logger::{DefaultLogger, Logger};
 use lox::{Lox, LoxError};
 
-fn main() -> io::Result<()> {
-    let args: Vec<String> = env::args().collect();
-    let debug = false; //TODO use structop for flag
+#[derive(Debug, StructOpt)]
+#[structopt(name = "loxrs", about = "A rust implementation of a lox interpreter")]
+struct Opt {
+    /// Activate debug mode
+    #[structopt(short, long)]
+    debug: bool,
 
-    match args.len() {
-        1 => {
-            let mut logger = DefaultLogger::new(debug, true);
-            let mut lox = Lox::new(&mut logger);
-            run_prompt(&mut lox)
-        }
-        2 => {
-            let mut logger = DefaultLogger::new(debug, false);
-            let mut lox = Lox::new(&mut logger);
-            run_file(&mut lox, &args[1])
-        }
-        _ => {
-            println!("Usage: loxrs script");
-            std::process::exit(64);
-        }
+    /// Input file
+    input: Option<String>,
+}
+
+fn main() -> io::Result<()> {
+    let opt = Opt::from_args();
+
+    let mut logger = DefaultLogger::new(opt.debug, false);
+    if let Some(input_path) = opt.input {
+        run_file(&mut logger, &input_path)
+    } else {
+        logger.is_repl = true;
+        run_prompt(&mut logger)
     }
 }
 
-fn run_file(lox: &mut Lox, path: &str) -> io::Result<()> {
+fn run_file(logger: &mut dyn Logger, path: &str) -> io::Result<()> {
+    let mut lox = Lox::new(logger);
     let source = fs::read_to_string(path).expect("Failed to read file");
     let result = lox.run(&source);
     match result {
@@ -52,7 +56,8 @@ fn run_file(lox: &mut Lox, path: &str) -> io::Result<()> {
     }
 }
 
-fn run_prompt(lox: &mut Lox) -> io::Result<()> {
+fn run_prompt(logger: &mut dyn Logger) -> io::Result<()> {
+    let mut lox = Lox::new(logger);
     println!("lox prompt: ");
     loop {
         print!("> ");

@@ -7,3 +7,4 @@ edition = '2018'
 [dependencies]
 derive-new = '0.5.8'
 float-cmp = '0.6.0'
+structopt = "0.3.12"
