@@ -140,17 +140,15 @@ impl<'a> Parser<'a> {
             Ok(Stmt::Break(self.previous().clone()))
         } else if self.match_tokens(&vec![TokenType::CONTINUE]) {
             self.consume(TokenType::SEMICOLON, "Expected ';' after continue")?;
-            // TODO
-            // Err(self.error("'continue' is not currently supported"))
             Ok(Stmt::Continue(self.previous().clone()))
         } else {
             self.expression_statement()
         }
     }
 
-    /// for_stmt        -> "for" "(" ( let_decl | expr_stmt | ";" )
-    ///                              expression? ";"
-    ///                              expression? ")" statement ;
+    /// for_stmt -> "for" "(" ( let_decl | expr_stmt | ";" )
+    ///                       expression? ";"
+    ///                       expression? ")" statement ;
     /// TODO "for" IDENTIFIER "in" IDENTIFIER block ;
     fn for_statement(&mut self) -> Result<Stmt, ParserError> {
         self.consume(TokenType::LEFT_PAREN, "Expected '(' after 'for'")?;
@@ -177,43 +175,41 @@ impl<'a> Parser<'a> {
         self.consume(TokenType::RIGHT_PAREN, "Expected ')' after for clauses")?;
 
         let mut body = self.statement()?;
-
         if let Some(increment) = increment {
             body = Stmt::Block(vec![Box::new(body), Box::new(Stmt::Expression(increment))]);
         }
-
         if let None = condition {
             condition = Some(Expr::Literal(Literal::TRUE))
         }
-
         body = Stmt::While(
             condition.expect("condition should be Some() at this point"),
             Box::new(body),
         );
-
         if let Some(initializer) = initializer {
             body = Stmt::Block(vec![Box::new(initializer), Box::new(body)]);
         }
-
         Ok(body)
     }
 
-    /// "while" "(" expression ")" statement ;
-    // TODO "while" expression block ;
+    /// "while" expression block_statement ;
     fn while_statement(&mut self) -> Result<Stmt, ParserError> {
-        self.consume(TokenType::LEFT_PAREN, "Expect '(' after 'while'.")?;
         let condition = self.expression()?;
-        self.consume(TokenType::RIGHT_PAREN, "Expect ')' after condition.")?;
-        let body = self.statement()?;
+        let body = self.block_statement()?;
         Ok(Stmt::While(condition, Box::new(body)))
     }
 
     /// print_stmt -> "print" expression ";" ;
+    /// TODO remove this when we have a standard library
     fn print_statement(&mut self) -> Result<Stmt, ParserError> {
-        // TODO remove this when we have a standard library
         let value = self.expression();
         self.consume(TokenType::SEMICOLON, "Expect ';' after value")?;
         value.and_then(|value| Ok(Stmt::Print(value)))
+    }
+
+    /// block_statement -> "{" block ;
+    fn block_statement(&mut self) -> Result<Stmt, ParserError> {
+        self.consume(TokenType::LEFT_BRACE, "Expected '{'")?;
+        Ok(Stmt::Block(self.block()?))
     }
 
     /// block -> "{" declaration* "}" ;
@@ -229,13 +225,9 @@ impl<'a> Parser<'a> {
     /// if_stmt -> "if" expression block ( "else" block )? ;
     fn if_statement(&mut self) -> Result<Stmt, ParserError> {
         let condition = self.expression()?;
-        self.consume(TokenType::LEFT_BRACE, "Expected '{' after condition")?;
-
-        let then_branch = Stmt::Block(self.block()?);
-
+        let then_branch = self.block_statement()?;
         let else_branch = if self.match_tokens(&vec![TokenType::ELSE]) {
-            let block = self.statement()?;
-            Some(Box::new(block))
+            Some(Box::new(self.statement()?))
         } else {
             None
         };
