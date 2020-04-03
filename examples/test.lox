@@ -1,4 +1,6 @@
-for (var i = 0; i <= 10; i = i + 1) {
+print "for";
+
+for (let i = 0; i <= 10; i = i + 1) {
   if i == 2 or i == 3 { // skip 2 or 3
     continue;
   }
@@ -8,13 +10,39 @@ for (var i = 0; i <= 10; i = i + 1) {
   }
 }
 
-print "";
-
+print "while";
 let i = 0;
 while i < 10 {
-  print i;
-  if i >= 5 {
-    break;
+  {
+    if i == 2 or i == 3 {
+      continue;
+    }
+    print i;
+    if i >= 5 {
+      break;
+    }
   }
   i = i + 1;
 }
+
+print "loop";
+
+let i = 0;
+loop {
+  if i < 10 { 
+    // execute next block
+  } else { break; }
+  {
+    if i == 2 or i == 3 {
+      continue;
+    }
+    print i;
+    if i >= 5 {
+      break;
+    }
+  }
+  i = i + 1;
+}
+
+
+

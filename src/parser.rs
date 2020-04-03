@@ -133,6 +133,8 @@ impl<'a> Parser<'a> {
             self.print_statement()
         } else if self.match_tokens(vec![TokenType::WHILE]) {
             self.while_statement()
+        } else if self.match_tokens(vec![TokenType::LOOP]) {
+            self.loop_statement()
         } else if self.match_tokens(vec![TokenType::LEFT_BRACE]) {
             Ok(Stmt::Block(self.block()?))
         } else if self.match_tokens(vec![TokenType::BREAK]) {
@@ -187,6 +189,12 @@ impl<'a> Parser<'a> {
             body = Stmt::Block(vec![Box::new(initializer), Box::new(body)]);
         }
         Ok(body)
+    }
+
+    /// "loop" block_statement ;
+    fn loop_statement(&mut self) -> Result<Stmt, ParserError> {
+        let body = self.block_statement()?;
+        Ok(Stmt::While(Expr::Literal(Literal::TRUE), Box::new(body)))
     }
 
     /// "while" expression block_statement ;
@@ -396,8 +404,11 @@ impl<'a> Parser<'a> {
     }
 
     fn match_tokens(&mut self, types: Vec<TokenType>) -> bool {
-        for token_type in types {
-            if self.check_token(token_type) {
+        if let Some(check_token_type) = self.check() {
+            if types
+                .iter()
+                .any(|token_type| token_type == &check_token_type)
+            {
                 self.advance();
                 return true;
             }
