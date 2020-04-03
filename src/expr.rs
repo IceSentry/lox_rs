@@ -10,6 +10,7 @@ pub enum Expr {
     Variable(Token),
     Assign(Token, Box<Expr>),
     Logical(Box<Expr>, Token, Box<Expr>),
+    FunctionCall(Box<Expr>, Token, Box<Vec<Expr>>),
 }
 
 impl Display for Expr {
@@ -22,6 +23,7 @@ impl Display for Expr {
             Expr::Variable(token) => write!(f, "{}", token),
             Expr::Assign(token, value) => write!(f, "({} = {})", token, value),
             Expr::Logical(left, operator, right) => write!(f, "({} {} {})", left, operator, right),
+            Expr::FunctionCall(callee, _paren, args) => write!(f, "{}({:?})", callee, args),
         }
     }
 }

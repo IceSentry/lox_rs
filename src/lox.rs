@@ -1,5 +1,6 @@
 use crate::{
     environment::Environment,
+    function::Function,
     interpreter::Interpreter,
     logger::Logger,
     parser::{Parser, ParserError},
@@ -7,15 +8,20 @@ use crate::{
 };
 
 use float_cmp::*;
-use std::fmt;
+use std::{
+    fmt,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
-#[derive(PartialEq, Clone)]
+#[derive(Clone)]
 pub enum LoxValue {
     Nil,       // TODO implement Option<T> and remove nil
     Undefined, // This is used as a flag, there are no corresponding literal
     Number(f64),
     Boolean(bool),
     String(String),
+    Function(Function),
+    Unit,
 }
 
 impl LoxValue {
@@ -49,6 +55,8 @@ impl fmt::Display for LoxValue {
             Number(value) => write!(f, "{}", value),
             Boolean(value) => write!(f, "{}", value),
             String(value) => write!(f, "{}", value),
+            Function(function) => function.fmt(f),
+            Unit => write!(f, "()"),
         }
     }
 }
@@ -64,9 +72,22 @@ pub enum LoxError {
 
 impl<'a> Lox<'a> {
     pub fn new(logger: &'a mut dyn Logger) -> Self {
+        let globals = Environment::default();
+        let clock_fn = Function::Native(
+            0,
+            Box::new(|_args: &Vec<LoxValue>| {
+                LoxValue::Number(
+                    SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .expect("Could not retrieve time.")
+                        .as_millis() as f64,
+                )
+            }),
+        );
+        globals.declare(&String::from("clock"), LoxValue::Function(clock_fn));
         Lox {
             logger,
-            environment: Environment::default(),
+            environment: globals,
         }
     }
 

@@ -1,5 +1,6 @@
 mod environment;
 mod expr;
+mod function;
 mod interpreter;
 mod literal;
 mod logger;

@@ -8,10 +8,6 @@ use crate::{
     token::{Token, TokenType},
 };
 
-// TODO:
-// * Take a custom logger?
-// * use visitor pattern
-
 pub struct RuntimeError(pub Token, pub String);
 
 pub struct Interpreter<'a> {
@@ -128,6 +124,28 @@ impl<'a> Interpreter<'a> {
                 }
                 self.evaluate(right, env)
             }
+            Expr::FunctionCall(callee, paren, args) => {
+                let callee = self.evaluate(callee, env)?;
+                let args: Result<Vec<LoxValue>, RuntimeError> =
+                    args.iter().map(|arg| self.evaluate(arg, env)).collect();
+                let args = args?;
+                match callee {
+                    LoxValue::Function(function) => {
+                        if args.len() > function.arity() {
+                            return Err(self.error(
+                                paren,
+                                &format!(
+                                    "Expected {} arguments but got {}",
+                                    function.arity(),
+                                    args.len()
+                                ),
+                            ));
+                        }
+                        Ok(function.call(self, &args))
+                    }
+                    _ => Err(self.error(paren, "Can only call functions and classes")),
+                }
+            }
         }
     }
 
@@ -180,6 +198,7 @@ impl<'a> Interpreter<'a> {
             (STAR, (Number(left), Number(right))) => Ok(Number(left * right)),
             (PLUS, (Number(left), Number(right))) => Ok(Number(left + right)),
             (PLUS, (String(left), String(right))) => Ok(String(format!("{}{}", left, right))),
+            (PLUS, (String(left), Number(right))) => Ok(String(format!("{}{}", left, right))),
             (PLUS, _) => Err(self.error(operator, "Operands must be two numbers or two strings")),
             (GREATER, (Number(left), Number(right))) => Ok(Boolean(left > right)),
             (GREATER_EQUAL, (Number(left), Number(right))) => Ok(Boolean(left >= right)),

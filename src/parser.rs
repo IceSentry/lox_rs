@@ -355,7 +355,7 @@ impl<'a> Parser<'a> {
     }
 
     /// unary -> ( "!" | "-" ) unary
-    ///        | primary ;
+    ///        | function_call ;
     fn unary(&mut self) -> Result<Expr, ParserError> {
         use TokenType::*;
         if match_tokens!(self, BANG, MINUS) {
@@ -363,8 +363,43 @@ impl<'a> Parser<'a> {
             let right = Box::new(self.unary()?);
             Ok(Expr::Unary(operator.clone(), right))
         } else {
-            self.primary()
+            self.function_call()
         }
+    }
+
+    /// function_call -> primary ( "(" arguments? ")" )* ;
+    /// arguments -> expression ( "," expression )*;
+    fn function_call(&mut self) -> Result<Expr, ParserError> {
+        let mut expr = self.primary()?;
+        loop {
+            if match_tokens!(self, TokenType::LEFT_PAREN) {
+                expr = self.finish_function_call(expr)?;
+            } else {
+                break;
+            }
+        }
+        Ok(expr)
+    }
+
+    fn finish_function_call(&mut self, callee: Expr) -> Result<Expr, ParserError> {
+        let mut args = Vec::new();
+        if !self.check_token(TokenType::RIGHT_PAREN) {
+            loop {
+                if args.len() >= 255 {
+                    self.error("Cannot have more than 255 arguments");
+                }
+                args.push(self.expression()?);
+                if !match_tokens!(self, TokenType::COMMA) {
+                    break;
+                }
+            }
+        }
+        let paren = self.consume(TokenType::RIGHT_PAREN, "Expected ')' after arguments")?;
+        Ok(Expr::FunctionCall(
+            Box::new(callee),
+            paren.clone(),
+            Box::new(args),
+        ))
     }
 
     /// primary -> "true" | "false" | "nil"
