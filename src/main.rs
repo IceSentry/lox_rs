@@ -22,15 +22,19 @@ use lox::{Lox, LoxError};
 
 fn main() -> io::Result<()> {
     let args: Vec<String> = env::args().collect();
-    let mut logger = DefaultLogger::new();
-    let mut lox = Lox::new(&mut logger); // TODO use structop flag
+    let debug = false; //TODO use structop for flag
 
     match args.len() {
         1 => {
-            // logger.is_repl = true;
+            let mut logger = DefaultLogger::new(debug, true);
+            let mut lox = Lox::new(&mut logger);
             run_prompt(&mut lox)
         }
-        2 => run_file(&mut lox, &args[1]),
+        2 => {
+            let mut logger = DefaultLogger::new(debug, false);
+            let mut lox = Lox::new(&mut logger);
+            run_file(&mut lox, &args[1])
+        }
         _ => {
             println!("Usage: loxrs script");
             std::process::exit(64);

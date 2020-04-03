@@ -1,5 +1,6 @@
 use crate::{
     expr::Expr,
+    literal::Literal,
     logger::Logger,
     stmt::Stmt,
     token::{Token, TokenType},
@@ -22,16 +23,20 @@ pub struct Parser<'a> {
 ///
 /// let_decl        -> "let" IDENTIFIER ( "=" expression )? ";" ;
 ///
-/// statement       -> print_stmt
-///                  | block
+/// statement       -> expr_stmt
+///                  | for_stmt
 ///                  | if_stmt
+///                  | print_stmt
 ///                  | while_stmt
-///                  | expr_stmt ;
+///                  | block ;
 ///
 /// print_stmt      -> "print" expression ";" ;
 /// block           -> "{" declaration* "}" ;
 /// if_stmt         -> "if" expression "{" statement "}" ( "else" "{" statement "}" )? ;
 /// while_stmt      -> "while" "(" expression ")" statement ;
+/// for_stmt        -> "for" "(" ( let_decl | expr_stmt | ";" )
+///                              expression? ";"
+///                              expression? ")" statement ;
 /// expr_stmt       -> expression ";" ;
 ///
 /// expression      -> assignment ;
@@ -70,7 +75,8 @@ impl<'a> Parser<'a> {
     pub fn parse(&mut self) -> Result<Vec<Stmt>, ParserError> {
         let mut statements = Vec::new();
         while !self.is_at_end() {
-            statements.push(self.declaration())
+            let stmt = self.declaration();
+            statements.push(stmt)
         }
         statements.into_iter().collect()
     }
@@ -109,25 +115,91 @@ impl<'a> Parser<'a> {
         Ok(Stmt::Let(name, initializer))
     }
 
-    /// statement  -> print_stmt
-    ///             | block
-    ///             | if_stmt
-    ///             | expr_stmt ;
+    /// statement -> expr_stmt
+    ///            | for_stmt
+    ///            | if_stmt
+    ///            | print_stmt
+    ///            | while_stmt
+    ///            | break
+    ///            | continue
+    ///            | block ;
+
     fn statement(&mut self) -> Result<Stmt, ParserError> {
-        if self.match_tokens(&vec![TokenType::PRINT]) {
-            self.print_statement()
-        } else if self.match_tokens(&vec![TokenType::LEFT_BRACE]) {
-            Ok(Stmt::Block(self.block()?))
+        if self.match_tokens(&vec![TokenType::FOR]) {
+            self.for_statement()
         } else if self.match_tokens(&vec![TokenType::IF]) {
             self.if_statement()
+        } else if self.match_tokens(&vec![TokenType::PRINT]) {
+            self.print_statement()
         } else if self.match_tokens(&vec![TokenType::WHILE]) {
             self.while_statement()
+        } else if self.match_tokens(&vec![TokenType::LEFT_BRACE]) {
+            Ok(Stmt::Block(self.block()?))
+        } else if self.match_tokens(&vec![TokenType::BREAK]) {
+            self.consume(TokenType::SEMICOLON, "Expected ';' after break")?;
+            Ok(Stmt::Break(self.previous().clone()))
+        } else if self.match_tokens(&vec![TokenType::CONTINUE]) {
+            self.consume(TokenType::SEMICOLON, "Expected ';' after continue")?;
+            // TODO
+            // Err(self.error("'continue' is not currently supported"))
+            Ok(Stmt::Continue(self.previous().clone()))
         } else {
             self.expression_statement()
         }
     }
 
-    // TODO use "while" expression block instead of "while" "(" expression ")" statement ;
+    /// for_stmt        -> "for" "(" ( let_decl | expr_stmt | ";" )
+    ///                              expression? ";"
+    ///                              expression? ")" statement ;
+    /// TODO "for" IDENTIFIER "in" IDENTIFIER block ;
+    fn for_statement(&mut self) -> Result<Stmt, ParserError> {
+        self.consume(TokenType::LEFT_PAREN, "Expected '(' after 'for'")?;
+        let initializer = if self.match_tokens(&vec![TokenType::SEMICOLON]) {
+            None
+        } else if self.match_tokens(&vec![TokenType::LET]) {
+            Some(self.let_declaration()?)
+        } else {
+            Some(self.expression_statement()?)
+        };
+
+        let mut condition = if !self.check(&TokenType::SEMICOLON) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        self.consume(TokenType::SEMICOLON, "Expected ';' after loop condition")?;
+
+        let increment = if !self.check(&TokenType::RIGHT_PAREN) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        self.consume(TokenType::RIGHT_PAREN, "Expected ')' after for clauses")?;
+
+        let mut body = self.statement()?;
+
+        if let Some(increment) = increment {
+            body = Stmt::Block(vec![Box::new(body), Box::new(Stmt::Expression(increment))]);
+        }
+
+        if let None = condition {
+            condition = Some(Expr::Literal(Literal::TRUE))
+        }
+
+        body = Stmt::While(
+            condition.expect("condition should be Some() at this point"),
+            Box::new(body),
+        );
+
+        if let Some(initializer) = initializer {
+            body = Stmt::Block(vec![Box::new(initializer), Box::new(body)]);
+        }
+
+        Ok(body)
+    }
+
+    /// "while" "(" expression ")" statement ;
+    // TODO "while" expression block ;
     fn while_statement(&mut self) -> Result<Stmt, ParserError> {
         self.consume(TokenType::LEFT_PAREN, "Expect '(' after 'while'.")?;
         let condition = self.expression()?;
@@ -160,12 +232,9 @@ impl<'a> Parser<'a> {
         self.consume(TokenType::LEFT_BRACE, "Expected '{' after condition")?;
 
         let then_branch = Stmt::Block(self.block()?);
-        println!("parsed then_branch\n{}", then_branch);
 
         let else_branch = if self.match_tokens(&vec![TokenType::ELSE]) {
-            println!("parsed ELSE");
             let block = self.statement()?;
-            println!("parsed else_branch\n{}", block);
             Some(Box::new(block))
         } else {
             None
@@ -329,7 +398,7 @@ impl<'a> Parser<'a> {
             }
 
             match self.peek().token_type {
-                CLASS | FUN | LET | FOR | IF | WHILE | PRINT | RETURN => return,
+                CLASS | FUN | LET | FOR | IF | WHILE | PRINT | RETURN | LOOP => return,
                 _ => self.advance(),
             };
         }

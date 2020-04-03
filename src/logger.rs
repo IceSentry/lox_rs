@@ -14,18 +14,26 @@ pub trait Logger {
 
     fn error(&mut self, token: &Token, message: String) {
         match token.token_type {
-            TokenType::EOF => self.report_error(token.position, " at end", message),
-            _ => self.report_error(token.position, &format!(" at '{}'", token.lexeme), message),
+            TokenType::EOF => self.report_error(token.position, "Parser", "at end", message),
+            _ => self.report_error(
+                token.position,
+                "Parser",
+                &format!("at '{}'", token.lexeme),
+                message,
+            ),
         }
     }
 
     fn runtime_error(&mut self, error: RuntimeError) {
         let RuntimeError(token, message) = error;
-        self.println(format!("RuntimeError: {}\n[{}]", message, token.position));
+        self.report_error(token.position, "Runtime", "", message);
     }
 
-    fn report_error(&mut self, position: Position, error_where: &str, message: String) {
-        self.println(format!("[{}] Error{}: {}", position, error_where, message));
+    fn report_error(&mut self, position: Position, tag: &str, error_where: &str, message: String) {
+        self.println(format!(
+            "[{}] {}Error {}: {}",
+            position, tag, error_where, message
+        ));
     }
 }
 
@@ -36,10 +44,10 @@ pub struct DefaultLogger {
 }
 
 impl DefaultLogger {
-    pub fn new() -> Self {
+    pub fn new(debug: bool, is_repl: bool) -> Self {
         DefaultLogger {
-            debug: false,
-            is_repl: false,
+            debug,
+            is_repl,
             output: std::io::stdout(),
         }
     }

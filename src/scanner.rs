@@ -104,6 +104,7 @@ impl<'a> Scanner<'a> {
                 self.logger.report_error(
                     self.position,
                     "Scanner",
+                    "",
                     format!("Unexpected character \"{}\"", c),
                 );
                 None
@@ -186,6 +187,7 @@ impl<'a> Scanner<'a> {
             self.logger.report_error(
                 self.position,
                 "Scanner",
+                "",
                 String::from("Unterminated string"),
             );
             return None;
@@ -235,6 +237,7 @@ impl<'a> Scanner<'a> {
                     self.logger.report_error(
                         self.position,
                         "Scanner",
+                        "",
                         String::from("Unterminated block comment"),
                     );
                 }
@@ -266,8 +269,11 @@ impl<'a> Scanner<'a> {
             "super" => (SUPER, None),
             "this" => (THIS, None),
             "true" => (TRUE, Some(Literal::TRUE)),
-            "let" => (LET, None),
+            "let" | "var" => (LET, None),
             "while" => (WHILE, None),
+            "loop" => (LOOP, None),
+            "break" => (BREAK, None),
+            "continue" => (CONTINUE, None),
             _ => (IDENTIFIER, None),
         }
     }

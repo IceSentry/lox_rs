@@ -3,8 +3,9 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 #[derive(Default, Clone)]
 pub struct EnvironmentData {
+    pub is_loop: bool,
+    pub enclosing: Option<Environment>,
     values: HashMap<String, LoxValue>,
-    enclosing: Option<Environment>,
 }
 
 #[derive(Default, Clone)]
@@ -18,7 +19,26 @@ impl Environment {
             data: Rc::new(RefCell::new(EnvironmentData {
                 values: Default::default(),
                 enclosing: Some(enclosing.clone()),
+                is_loop: enclosing.data.borrow().is_loop,
             })),
+        }
+    }
+
+    pub fn is_inside_loop(&self) -> bool {
+        if self.data.borrow().is_loop {
+            true
+        } else {
+            match self.data.borrow().enclosing {
+                Some(ref enclosing) => enclosing.is_inside_loop(),
+                None => false,
+            }
+        }
+    }
+
+    pub fn is_enclosing_loop(&self) -> bool {
+        match self.data.borrow().enclosing {
+            Some(ref enclosing) => enclosing.data.borrow().is_loop,
+            None => false,
         }
     }
 

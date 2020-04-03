@@ -4,7 +4,7 @@ use crate::{
     literal::Literal,
     logger::Logger,
     lox::LoxValue,
-    stmt::Stmt,
+    stmt::{Stmt, StmtResult},
     token::{Token, TokenType},
 };
 
@@ -29,6 +29,74 @@ impl<'a> Interpreter<'a> {
             if let Err(error) = self.execute(statement, env) {
                 self.logger.runtime_error(error);
             }
+        }
+    }
+
+    fn execute(&mut self, stmt: &Stmt, env: &mut Environment) -> Result<StmtResult, RuntimeError> {
+        match stmt {
+            Stmt::Expression(expr) => {
+                let value = self.evaluate(&expr, env)?;
+                self.logger.println_repl(format!("{}", value));
+                Ok(StmtResult::Unit)
+            }
+            Stmt::Print(expr) => {
+                let value = self.evaluate(&expr, env)?;
+                self.logger.println(format!("{}", value));
+                Ok(StmtResult::Unit)
+            }
+            Stmt::Let(token, initializer) => {
+                let value = match initializer {
+                    Some(inializer_value) => self.evaluate(&inializer_value, env)?,
+                    None => LoxValue::Nil,
+                };
+                env.declare(&token.lexeme, value);
+                Ok(StmtResult::Unit)
+            }
+            Stmt::Block(statements) => {
+                let mut environment = Environment::new(&env);
+                for stmt in statements {
+                    match self.execute(stmt, &mut environment)? {
+                        StmtResult::Break => return Ok(StmtResult::Break),
+                        StmtResult::Continue => {
+                            if env.is_enclosing_loop() {
+                                // This is to make sure the last block gets executed
+                                // in a desugared for loop
+                                return Ok(StmtResult::Continue);
+                            }
+                        }
+                        StmtResult::Unit => (),
+                    }
+                }
+                Ok(StmtResult::Unit)
+            }
+            Stmt::If(condition, then_branch, else_branch) => {
+                if self.evaluate(&condition, env)?.is_truthy() {
+                    self.execute(then_branch, env)
+                } else if let Some(else_branch) = else_branch {
+                    self.execute(else_branch, env)
+                } else {
+                    Ok(StmtResult::Unit)
+                }
+            }
+            Stmt::While(condition, body) => {
+                while self.evaluate(&condition, env)?.is_truthy() {
+                    env.data.borrow_mut().is_loop = true;
+                    match self.execute(body, env)? {
+                        StmtResult::Break => break,
+                        StmtResult::Continue => continue,
+                        StmtResult::Unit => (),
+                    }
+                }
+                Ok(StmtResult::Unit)
+            }
+            Stmt::Break(token) => match env.is_inside_loop() {
+                true => Ok(StmtResult::Break),
+                false => self.error_stmt(&token, "'break' must be inside a loop"),
+            },
+            Stmt::Continue(token) => match env.is_inside_loop() {
+                true => Ok(StmtResult::Continue),
+                false => self.error_stmt(&token, "'continue' must be inside a loop"),
+            },
         }
     }
 
@@ -65,51 +133,6 @@ impl<'a> Interpreter<'a> {
                     }
                 };
                 self.evaluate(right, env)
-            }
-        }
-    }
-
-    fn execute(&mut self, stmt: &Stmt, env: &mut Environment) -> Result<(), RuntimeError> {
-        match stmt {
-            Stmt::Expression(expr) => {
-                let value = self.evaluate(&expr, env)?;
-                self.logger.println_repl(format!("{}", value));
-                Ok(())
-            }
-            Stmt::Print(expr) => {
-                let value = self.evaluate(&expr, env)?;
-                self.logger.println(format!("{}", value));
-                Ok(())
-            }
-            Stmt::Let(token, initializer) => {
-                let value = match initializer {
-                    Some(inializer_value) => self.evaluate(&inializer_value, env)?,
-                    None => LoxValue::Nil,
-                };
-                env.declare(&token.lexeme, value);
-                Ok(())
-            }
-            Stmt::Block(statements) => {
-                let mut environment = Environment::new(&env);
-                for stmt in statements {
-                    self.execute(stmt, &mut environment)?;
-                }
-                Ok(())
-            }
-            Stmt::If(condition, then_branch, else_branch) => {
-                if self.evaluate(&condition, env)?.is_truthy() {
-                    self.execute(then_branch, env)
-                } else if let Some(else_branch) = else_branch {
-                    self.execute(else_branch, env)
-                } else {
-                    Ok(())
-                }
-            }
-            Stmt::While(condition, body) => {
-                while self.evaluate(&condition, env)?.is_truthy() {
-                    self.execute(body, env)?;
-                }
-                Ok(())
             }
         }
     }
@@ -200,6 +223,10 @@ impl<'a> Interpreter<'a> {
     }
 
     fn error(&self, token: &Token, message: &str) -> Result<LoxValue, RuntimeError> {
+        Err(RuntimeError(token.clone(), String::from(message)))
+    }
+
+    fn error_stmt(&self, token: &Token, message: &str) -> Result<StmtResult, RuntimeError> {
         Err(RuntimeError(token.clone(), String::from(message)))
     }
 

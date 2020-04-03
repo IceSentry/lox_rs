@@ -20,7 +20,7 @@ impl Display for Expr {
             Expr::Literal(literal) => write!(f, "{}", literal),
             Expr::Unary(operator, right) => write!(f, "({} {})", operator, right),
             Expr::Variable(token) => write!(f, "{}", token),
-            Expr::Assign(token, value) => write!(f, "{} = {}", token, value),
+            Expr::Assign(token, value) => write!(f, "({} = {})", token, value),
             Expr::Logical(left, operator, right) => write!(f, "({} {} {})", left, operator, right),
         }
     }
