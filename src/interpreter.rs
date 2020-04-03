@@ -91,11 +91,11 @@ impl<'a> Interpreter<'a> {
             }
             Stmt::Break(token) => match env.is_inside_loop() {
                 true => Ok(StmtResult::Break),
-                false => self.error_stmt(&token, "'break' must be inside a loop"),
+                false => Err(self.error(&token, "'break' must be inside a loop")),
             },
             Stmt::Continue(token) => match env.is_inside_loop() {
                 true => Ok(StmtResult::Continue),
-                false => self.error_stmt(&token, "'continue' must be inside a loop"),
+                false => Err(self.error(&token, "'continue' must be inside a loop")),
             },
         }
     }
@@ -110,7 +110,7 @@ impl<'a> Interpreter<'a> {
             Expr::Unary(operator, right) => self.evaluate_unary_op(operator, right, env),
             Expr::Variable(token) => match env.get(&token)? {
                 LoxValue::Undefined => {
-                    self.error(token, &format!("{} is undefined!", token.lexeme))
+                    Err(self.error(token, &format!("{} is undefined!", token.lexeme)))
                 }
                 value => Ok(value),
             },
@@ -120,18 +120,12 @@ impl<'a> Interpreter<'a> {
             }
             Expr::Logical(left, operator, right) => {
                 let left = self.evaluate(left, env)?;
-                match operator.token_type {
-                    TokenType::OR => {
-                        if left.is_truthy() {
-                            return Ok(left);
-                        }
-                    }
-                    _ => {
-                        if !left.is_truthy() {
-                            return Ok(left);
-                        }
-                    }
-                };
+                match (&operator.token_type, left.is_truthy()) {
+                    (TokenType::OR, true) => return Ok(left),
+                    (TokenType::OR, false) => (),
+                    (_, false) => return Ok(left),
+                    (_, true) => (),
+                }
                 self.evaluate(right, env)
             }
         }
@@ -159,7 +153,7 @@ impl<'a> Interpreter<'a> {
             TokenType::BANG => Ok(LoxValue::Boolean(!right.is_truthy())),
             TokenType::MINUS => match right {
                 LoxValue::Number(value) => Ok(LoxValue::Number(-value)),
-                _ => self.error(operator, "Operand must be a number"),
+                _ => Err(self.error(operator, "Operand must be a number")),
             },
             _ => unreachable!(),
         }
@@ -176,58 +170,29 @@ impl<'a> Interpreter<'a> {
         let right = self.evaluate(&right, env)?;
 
         use LoxValue::*;
-        match operator.token_type {
-            TokenType::MINUS => match (left, right) {
-                (Number(left), Number(right)) => Ok(Number(left - right)),
-                _ => self.error_number_operand(operator),
+        use TokenType::*;
+        match (&operator.token_type, (&left, &right)) {
+            (MINUS, (Number(left), Number(right))) => Ok(Number(left - right)),
+            (SLASH, (Number(left), Number(right))) => match right == &0.0 {
+                true => Err(self.error(operator, "Division by zero")),
+                false => Ok(Number(left / right)),
             },
-            TokenType::SLASH => match (left, right) {
-                (Number(left), Number(right)) => {
-                    if right == 0.0 {
-                        self.error(operator, "Division by zero")
-                    } else {
-                        Ok(Number(left / right))
-                    }
-                }
-                _ => self.error_number_operand(operator),
-            },
-            TokenType::STAR => match (left, right) {
-                (Number(left), Number(right)) => Ok(Number(left * right)),
-                _ => self.error_number_operand(operator),
-            },
-            TokenType::PLUS => match (left, right) {
-                (Number(left), Number(right)) => Ok(Number(left + right)),
-                (String(left), String(right)) => Ok(String(format!("{}{}", left, right))),
-                _ => self.error(operator, "Operands must be two numbers or two strings"),
-            },
-            TokenType::GREATER => match (left, right) {
-                (Number(left), Number(right)) => Ok(Boolean(left > right)),
-                _ => self.error_number_operand(operator),
-            },
-            TokenType::GREATER_EQUAL => match (left, right) {
-                (Number(left), Number(right)) => Ok(Boolean(left >= right)),
-                _ => self.error_number_operand(operator),
-            },
-            TokenType::LESS => match (left, right) {
-                (Number(left), Number(right)) => Ok(Boolean(left < right)),
-                _ => self.error_number_operand(operator),
-            },
-            TokenType::LESS_EQUAL => match (left, right) {
-                (Number(left), Number(right)) => Ok(Boolean(left <= right)),
-                _ => self.error_number_operand(operator),
-            },
-            TokenType::BANG_EQUAL => Ok(Boolean(!left.is_equal(right))),
-            TokenType::EQUAL_EQUAL => Ok(Boolean(left.is_equal(right))),
-            _ => unreachable!(),
+            (STAR, (Number(left), Number(right))) => Ok(Number(left * right)),
+            (PLUS, (Number(left), Number(right))) => Ok(Number(left + right)),
+            (PLUS, (String(left), String(right))) => Ok(String(format!("{}{}", left, right))),
+            (PLUS, _) => Err(self.error(operator, "Operands must be two numbers or two strings")),
+            (GREATER, (Number(left), Number(right))) => Ok(Boolean(left > right)),
+            (GREATER_EQUAL, (Number(left), Number(right))) => Ok(Boolean(left >= right)),
+            (LESS, (Number(left), Number(right))) => Ok(Boolean(left < right)),
+            (LESS_EQUAL, (Number(left), Number(right))) => Ok(Boolean(left <= right)),
+            (BANG_EQUAL, _) => Ok(Boolean(!left.is_equal(right))),
+            (EQUAL_EQUAL, _) => Ok(Boolean(left.is_equal(right))),
+            (_, _) => self.error_number_operand(operator),
         }
     }
 
-    fn error(&self, token: &Token, message: &str) -> Result<LoxValue, RuntimeError> {
-        Err(RuntimeError(token.clone(), String::from(message)))
-    }
-
-    fn error_stmt(&self, token: &Token, message: &str) -> Result<StmtResult, RuntimeError> {
-        Err(RuntimeError(token.clone(), String::from(message)))
+    fn error(&self, token: &Token, message: &str) -> RuntimeError {
+        RuntimeError(token.clone(), String::from(message))
     }
 
     fn error_number_operand(&self, token: &Token) -> Result<LoxValue, RuntimeError> {
