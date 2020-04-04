@@ -1,4 +1,7 @@
-use crate::{interpreter::InterpreterError, lox::LoxValue, token::Token};
+use crate::{
+    lox::{ErrorData, LoxError, LoxResult, LoxValue},
+    token::Token,
+};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 #[derive(Default, Clone)]
@@ -39,28 +42,28 @@ impl Environment {
         self.values.insert(name.clone(), value);
     }
 
-    pub fn get(&self, token: &Token) -> Result<LoxValue, InterpreterError> {
+    pub fn get(&self, token: &Token) -> LoxResult<LoxValue> {
         match self.values.get(token.lexeme.as_str()) {
             Some(value) => Ok(value.clone()),
             None => match self.enclosing {
                 Some(ref enclosing) => enclosing.borrow().get(token),
-                None => Err(InterpreterError::Panic(
+                None => Err(LoxError::Panic(ErrorData::new(
                     token.clone(),
                     format!("Undeclared variable '{}'", token.lexeme),
-                )),
+                ))),
             },
         }
     }
 
-    pub fn assign(&mut self, token: &Token, value: LoxValue) -> Result<LoxValue, InterpreterError> {
+    pub fn assign(&mut self, token: &Token, value: LoxValue) -> LoxResult<LoxValue> {
         match self.values.insert(token.lexeme.clone(), value.clone()) {
             Some(_) => Ok(value),
             None => match self.enclosing {
                 Some(ref enclosing) => enclosing.borrow_mut().assign(token, value),
-                None => Err(InterpreterError::Panic(
+                None => Err(LoxError::Panic(ErrorData::new(
                     token.clone(),
                     format!("Undeclared variable '{}'", token.lexeme),
-                )),
+                ))),
             },
         }
     }

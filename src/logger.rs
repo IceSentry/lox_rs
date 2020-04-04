@@ -1,5 +1,5 @@
 use crate::{
-    interpreter::InterpreterError,
+    lox::LoxError,
     token::{Position, Token, TokenType},
 };
 use enum_dispatch::*;
@@ -30,15 +30,16 @@ pub trait Logger {
         }
     }
 
-    fn runtime_error(&mut self, error: InterpreterError) {
+    fn runtime_error(&mut self, error: LoxError) {
         match error {
-            InterpreterError::RuntimeError(token, message) => {
-                self.report_error(token.position, "Runtime", "", message);
+            LoxError::Runtime(err) => {
+                self.report_error(err.token.position, "Runtime", "", err.message);
             }
-            InterpreterError::Panic(token, message) => {
-                self.report_error(token.position, "Interpreter", "", message);
+            LoxError::Panic(err) => {
+                self.report_error(err.token.position, "Panic!", "", err.message);
                 std::process::exit(70)
             }
+            LoxError::Parser(_) => unreachable!(),
         }
     }
 

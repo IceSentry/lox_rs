@@ -4,7 +4,7 @@ use crate::{
     function::Function,
     literal::Literal,
     logger::{Logger, LoggerImpl},
-    lox::LoxValue,
+    lox::{ErrorData, LoxError, LoxResult, LoxValue},
     stmt::{Stmt, StmtResult},
     token::{Token, TokenType},
 };
@@ -13,11 +13,6 @@ use std::{
     rc::Rc,
     time::{SystemTime, UNIX_EPOCH},
 };
-
-pub enum InterpreterError {
-    RuntimeError(Token, String),
-    Panic(Token, String),
-}
 
 pub struct Interpreter<'a> {
     environment: Rc<RefCell<Environment>>,
@@ -61,11 +56,7 @@ impl<'a> Interpreter<'a> {
         }
     }
 
-    fn execute(
-        &mut self,
-        stmt: &Stmt,
-        env: Rc<RefCell<Environment>>,
-    ) -> Result<StmtResult, InterpreterError> {
+    fn execute(&mut self, stmt: &Stmt, env: Rc<RefCell<Environment>>) -> LoxResult<StmtResult> {
         match stmt {
             Stmt::Expression(expr) => {
                 let value = self.evaluate(&expr, &mut env.borrow_mut())?;
@@ -141,11 +132,7 @@ impl<'a> Interpreter<'a> {
         }
     }
 
-    fn evaluate(
-        &mut self,
-        expr: &Expr,
-        env: &mut Environment,
-    ) -> Result<LoxValue, InterpreterError> {
+    fn evaluate(&mut self, expr: &Expr, env: &mut Environment) -> LoxResult<LoxValue> {
         match expr {
             Expr::Binary(left, operator, right) => {
                 self.evaluate_binary_op(left, operator, right, env)
@@ -175,7 +162,7 @@ impl<'a> Interpreter<'a> {
             }
             Expr::FunctionCall(callee, paren, args) => {
                 let callee = self.evaluate(callee, env)?;
-                let args: Result<Vec<LoxValue>, InterpreterError> =
+                let args: LoxResult<Vec<LoxValue>> =
                     args.iter().map(|arg| self.evaluate(arg, env)).collect();
                 let args = args?;
                 match callee {
@@ -198,7 +185,7 @@ impl<'a> Interpreter<'a> {
         }
     }
 
-    fn evaluate_literal(&self, literal: &Literal) -> Result<LoxValue, InterpreterError> {
+    fn evaluate_literal(&self, literal: &Literal) -> LoxResult<LoxValue> {
         Ok(match literal {
             Literal::String(value) => LoxValue::String(value.clone()),
             Literal::Number(value) => LoxValue::Number(*value),
@@ -213,7 +200,7 @@ impl<'a> Interpreter<'a> {
         operator: &Token,
         right: &Expr,
         env: &mut Environment,
-    ) -> Result<LoxValue, InterpreterError> {
+    ) -> LoxResult<LoxValue> {
         let right = self.evaluate(&right, env)?;
 
         match operator.token_type {
@@ -232,7 +219,7 @@ impl<'a> Interpreter<'a> {
         operator: &Token,
         right: &Expr,
         env: &mut Environment,
-    ) -> Result<LoxValue, InterpreterError> {
+    ) -> LoxResult<LoxValue> {
         let left = self.evaluate(&left, env)?;
         let right = self.evaluate(&right, env)?;
 
@@ -259,14 +246,14 @@ impl<'a> Interpreter<'a> {
         }
     }
 
-    fn error(&self, token: &Token, message: &str) -> InterpreterError {
-        InterpreterError::RuntimeError(token.clone(), String::from(message))
+    fn error(&self, token: &Token, message: &str) -> LoxError {
+        LoxError::Runtime(ErrorData::new(token.clone(), String::from(message)))
     }
 
-    fn error_number_operand(&self, token: &Token) -> Result<LoxValue, InterpreterError> {
-        Err(InterpreterError::RuntimeError(
+    fn error_number_operand(&self, token: &Token) -> LoxResult<LoxValue> {
+        Err(LoxError::Runtime(ErrorData::new(
             token.clone(),
             String::from("Operands must be numbers"),
-        ))
+        )))
     }
 }

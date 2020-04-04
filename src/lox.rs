@@ -1,10 +1,6 @@
 use crate::{
-    function::Function,
-    interpreter::Interpreter,
-    logger::LoggerImpl,
-    parser::{Parser, ParserError},
-    scanner::Scanner,
-    token::Token,
+    function::Function, interpreter::Interpreter, logger::LoggerImpl, parser::Parser,
+    scanner::Scanner, token::Token,
 };
 
 use derive_new::*;
@@ -66,17 +62,17 @@ pub struct Lox<'a> {
 
 #[derive(new)]
 pub struct ErrorData {
-    token: Token,
-    message: String,
+    pub token: Token,
+    pub message: String,
 }
 
 pub enum LoxError {
-    Parser(String),
+    Parser(ErrorData),
     Runtime(ErrorData),
     Panic(ErrorData),
 }
 
-type LoxResult<T> = std::result::Result<T, LoxError>;
+pub type LoxResult<T> = std::result::Result<T, LoxError>;
 
 impl<'a> Lox<'a> {
     pub fn new(logger: &'a Rc<RefCell<LoggerImpl<'a>>>) -> Self {
@@ -86,16 +82,12 @@ impl<'a> Lox<'a> {
         }
     }
 
-    pub fn run(&mut self, source: &str) -> Result<(), LoxError> {
+    pub fn run(&mut self, source: &str) -> LoxResult<()> {
         let mut scanner = Scanner::new(self.logger, String::from(source));
         let tokens = scanner.scan_tokens();
         let mut parser = Parser::new(tokens.to_vec(), self.logger);
-        match parser.parse() {
-            Ok(statements) => {
-                self.interpreter.interpret(&statements);
-                Ok(())
-            }
-            Err(err) => Err(LoxError::Parser(err.0)),
-        }
+        let statements = parser.parse()?;
+        self.interpreter.interpret(&statements);
+        Ok(())
     }
 }
