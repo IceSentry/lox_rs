@@ -55,8 +55,8 @@ fn run_file(logger: DefaultLogger, path: &str) -> io::Result<()> {
     let result = lox.run(&source);
     match result {
         Err(LoxError::Parser(_)) => std::process::exit(65),
-        // Err(LoxError::Runtime(_)) => std::process::exit(70),
-        Ok(_) => Ok(()),
+        Err(LoxError::Panic(_)) => std::process::exit(70),
+        _ => Ok(()),
     }
 }
 

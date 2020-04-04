@@ -1,5 +1,5 @@
 use crate::{
-    interpreter::RuntimeError,
+    interpreter::InterpreterError,
     token::{Position, Token, TokenType},
 };
 use enum_dispatch::*;
@@ -30,9 +30,16 @@ pub trait Logger {
         }
     }
 
-    fn runtime_error(&mut self, error: RuntimeError) {
-        let RuntimeError(token, message) = error;
-        self.report_error(token.position, "Runtime", "", message);
+    fn runtime_error(&mut self, error: InterpreterError) {
+        match error {
+            InterpreterError::RuntimeError(token, message) => {
+                self.report_error(token.position, "Runtime", "", message);
+            }
+            InterpreterError::Panic(token, message) => {
+                self.report_error(token.position, "Interpreter", "", message);
+                std::process::exit(70)
+            }
+        }
     }
 
     fn report_error(&mut self, position: Position, tag: &str, error_where: &str, message: String) {

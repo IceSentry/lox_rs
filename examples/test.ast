@@ -1,20 +1,6 @@
-(let i = 0)
-(while (i < 10) {
-  {
-    (if ((i == 2) or (i == 3)) {
-      (continue)
-    })
-    (print i)
-    (if (i >= 5) {
-      (break)
-    })
-  }
-  (i = (i + 1))
-})
-
-(let i = 0)
-(while true {
-  (if (i <= 10) {
+{
+  (let i = 0)
+  (while (i <= 10) {
     {
       (if ((i == 2) or (i == 3)) {
         (continue)
@@ -25,7 +11,21 @@
       })
     }
     (i = (i + 1))
-  } else {
-    (break)
   })
-})
+}
+
+{
+  (let i = 0)
+  (while (i <= 10) {
+    {
+      (if ((i == 2) or (i == 3)) {
+        (continue)
+      })
+      (print i)
+      (if (i >= 5) {
+        (break)
+      })
+    }
+    (i = (i + 1))
+  })
+}

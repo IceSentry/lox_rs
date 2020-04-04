@@ -7,7 +7,7 @@ use crate::{
 };
 use std::{cell::RefCell, rc::Rc};
 
-pub struct ParserError(String);
+pub struct ParserError(pub String);
 
 pub struct Parser<'a> {
     tokens: Vec<Token>,
@@ -87,7 +87,6 @@ impl<'a> Parser<'a> {
     ///            | break
     ///            | continue
     ///            | block ;
-
     fn statement(&mut self) -> Result<Stmt, ParserError> {
         if match_tokens!(self, TokenType::FOR) {
             self.for_statement()

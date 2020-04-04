@@ -1,3 +1,11 @@
+
+// print clock();
+// let a = 0;
+// while a < 100000 {
+//   a = a + 1 ;
+// }
+// print clock();
+
 print "for";
 
 for (let i = 0; i <= 10; i = i + 1) {
@@ -11,8 +19,9 @@ for (let i = 0; i <= 10; i = i + 1) {
 }
 
 print "while";
+
 let i = 0;
-while i < 10 {
+while i <= 10 {
   {
     if i == 2 or i == 3 {
       continue;
@@ -24,6 +33,8 @@ while i < 10 {
   }
   i = i + 1;
 }
+
+
 
 print "loop";
 

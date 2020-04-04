@@ -1,12 +1,13 @@
 use crate::{
-    environment::Environment,
     function::Function,
     interpreter::Interpreter,
     logger::LoggerImpl,
     parser::{Parser, ParserError},
     scanner::Scanner,
+    token::Token,
 };
 
+use derive_new::*;
 use float_cmp::*;
 use std::{cell::RefCell, fmt, rc::Rc};
 
@@ -63,9 +64,19 @@ pub struct Lox<'a> {
     pub interpreter: Interpreter<'a>,
 }
 
-pub enum LoxError {
-    Parser(ParserError),
+#[derive(new)]
+pub struct ErrorData {
+    token: Token,
+    message: String,
 }
+
+pub enum LoxError {
+    Parser(String),
+    Runtime(ErrorData),
+    Panic(ErrorData),
+}
+
+type LoxResult<T> = std::result::Result<T, LoxError>;
 
 impl<'a> Lox<'a> {
     pub fn new(logger: &'a Rc<RefCell<LoggerImpl<'a>>>) -> Self {
@@ -84,7 +95,7 @@ impl<'a> Lox<'a> {
                 self.interpreter.interpret(&statements);
                 Ok(())
             }
-            Err(err) => Err(LoxError::Parser(err)),
+            Err(err) => Err(LoxError::Parser(err.0)),
         }
     }
 }

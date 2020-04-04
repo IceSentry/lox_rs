@@ -1,60 +1,99 @@
 use crate::{
     environment::Environment,
     expr::Expr,
+    function::Function,
     literal::Literal,
-    logger::Logger,
+    logger::{Logger, LoggerImpl},
     lox::LoxValue,
     stmt::{Stmt, StmtResult},
     token::{Token, TokenType},
 };
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
-pub struct RuntimeError(pub Token, pub String);
+pub enum InterpreterError {
+    RuntimeError(Token, String),
+    Panic(Token, String),
+}
 
 pub struct Interpreter<'a> {
-    logger: &'a mut dyn Logger,
+    environment: Rc<RefCell<Environment>>,
+    // globals: Rc<RefCell<Environment>>,
+    logger: &'a Rc<RefCell<LoggerImpl<'a>>>,
 }
 
 impl<'a> Interpreter<'a> {
-    pub fn new(logger: &'a mut dyn Logger) -> Self {
-        Interpreter { logger }
+    pub fn new(logger: &'a Rc<RefCell<LoggerImpl<'a>>>) -> Self {
+        let globals = Rc::new(RefCell::new(Environment::default()));
+        let clock_fn = Function::Native(
+            0,
+            Box::new(|_args: &Vec<LoxValue>| {
+                LoxValue::Number(
+                    SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .expect("Could not retrieve time.")
+                        .as_millis() as f64,
+                )
+            }),
+        );
+        globals
+            .borrow_mut()
+            .declare(&String::from("clock"), LoxValue::Function(clock_fn));
+
+        Interpreter {
+            logger,
+            environment: Rc::clone(&globals),
+            // globals,
+        }
     }
 
-    pub fn interpret(&mut self, statements: &Vec<Stmt>, env: &mut Environment) {
+    pub fn interpret(&mut self, statements: &Vec<Stmt>) {
         for statement in statements {
-            self.logger.println_debug(format!("{}", statement));
-            if let Err(error) = self.execute(statement, env) {
-                self.logger.runtime_error(error);
+            self.logger
+                .borrow_mut()
+                .println_debug(format!("{}", statement));
+            if let Err(error) = self.execute(statement, self.environment.clone()) {
+                self.logger.borrow_mut().runtime_error(error);
             }
         }
     }
 
-    fn execute(&mut self, stmt: &Stmt, env: &mut Environment) -> Result<StmtResult, RuntimeError> {
+    fn execute(
+        &mut self,
+        stmt: &Stmt,
+        env: Rc<RefCell<Environment>>,
+    ) -> Result<StmtResult, InterpreterError> {
         match stmt {
             Stmt::Expression(expr) => {
-                let value = self.evaluate(&expr, env)?;
-                self.logger.println_repl(format!("{}", value));
+                let value = self.evaluate(&expr, &mut env.borrow_mut())?;
+                self.logger.borrow_mut().println_repl(format!("{}", value));
                 Ok(StmtResult::Unit)
             }
             Stmt::Print(expr) => {
-                let value = self.evaluate(&expr, env)?;
-                self.logger.println(format!("{}", value));
+                let value = self.evaluate(&expr, &mut env.borrow_mut())?;
+                self.logger.borrow_mut().println(format!("{}", value));
                 Ok(StmtResult::Unit)
             }
             Stmt::Let(token, initializer) => {
                 let value = match initializer {
-                    Some(inializer_value) => self.evaluate(&inializer_value, env)?,
+                    Some(inializer_value) => {
+                        self.evaluate(&inializer_value, &mut env.borrow_mut())?
+                    }
                     None => LoxValue::Nil,
                 };
-                env.declare(&token.lexeme, value);
+                env.borrow_mut().declare(&token.lexeme, value);
                 Ok(StmtResult::Unit)
             }
             Stmt::Block(statements) => {
-                let mut environment = Environment::new(&env);
+                let environment = Rc::new(RefCell::new(Environment::new(&env)));
                 for stmt in statements {
-                    match self.execute(stmt, &mut environment)? {
+                    match self.execute(stmt, environment.clone())? {
                         StmtResult::Break => return Ok(StmtResult::Break),
                         StmtResult::Continue => {
-                            if env.is_enclosing_loop() {
+                            if env.borrow_mut().is_enclosing_loop() {
                                 // This is to make sure the last block gets executed
                                 // in a desugared for loop
                                 return Ok(StmtResult::Continue);
@@ -66,7 +105,10 @@ impl<'a> Interpreter<'a> {
                 Ok(StmtResult::Unit)
             }
             Stmt::If(condition, then_branch, else_branch) => {
-                if self.evaluate(&condition, env)?.is_truthy() {
+                if self
+                    .evaluate(&condition, &mut env.borrow_mut())?
+                    .is_truthy()
+                {
                     self.execute(then_branch, env)
                 } else if let Some(else_branch) = else_branch {
                     self.execute(else_branch, env)
@@ -75,9 +117,12 @@ impl<'a> Interpreter<'a> {
                 }
             }
             Stmt::While(condition, body) => {
-                while self.evaluate(&condition, env)?.is_truthy() {
-                    env.data.borrow_mut().is_loop = true;
-                    match self.execute(body, env)? {
+                while self
+                    .evaluate(&condition, &mut env.borrow_mut())?
+                    .is_truthy()
+                {
+                    env.borrow_mut().is_loop = true;
+                    match self.execute(body, Rc::clone(&env))? {
                         StmtResult::Break => break,
                         StmtResult::Continue => continue,
                         StmtResult::Unit => (),
@@ -85,18 +130,22 @@ impl<'a> Interpreter<'a> {
                 }
                 Ok(StmtResult::Unit)
             }
-            Stmt::Break(token) => match env.is_inside_loop() {
+            Stmt::Break(token) => match env.borrow_mut().is_inside_loop() {
                 true => Ok(StmtResult::Break),
                 false => Err(self.error(&token, "'break' must be inside a loop")),
             },
-            Stmt::Continue(token) => match env.is_inside_loop() {
+            Stmt::Continue(token) => match env.borrow_mut().is_inside_loop() {
                 true => Ok(StmtResult::Continue),
                 false => Err(self.error(&token, "'continue' must be inside a loop")),
             },
         }
     }
 
-    fn evaluate(&mut self, expr: &Expr, env: &mut Environment) -> Result<LoxValue, RuntimeError> {
+    fn evaluate(
+        &mut self,
+        expr: &Expr,
+        env: &mut Environment,
+    ) -> Result<LoxValue, InterpreterError> {
         match expr {
             Expr::Binary(left, operator, right) => {
                 self.evaluate_binary_op(left, operator, right, env)
@@ -126,7 +175,7 @@ impl<'a> Interpreter<'a> {
             }
             Expr::FunctionCall(callee, paren, args) => {
                 let callee = self.evaluate(callee, env)?;
-                let args: Result<Vec<LoxValue>, RuntimeError> =
+                let args: Result<Vec<LoxValue>, InterpreterError> =
                     args.iter().map(|arg| self.evaluate(arg, env)).collect();
                 let args = args?;
                 match callee {
@@ -149,7 +198,7 @@ impl<'a> Interpreter<'a> {
         }
     }
 
-    fn evaluate_literal(&self, literal: &Literal) -> Result<LoxValue, RuntimeError> {
+    fn evaluate_literal(&self, literal: &Literal) -> Result<LoxValue, InterpreterError> {
         Ok(match literal {
             Literal::String(value) => LoxValue::String(value.clone()),
             Literal::Number(value) => LoxValue::Number(*value),
@@ -164,7 +213,7 @@ impl<'a> Interpreter<'a> {
         operator: &Token,
         right: &Expr,
         env: &mut Environment,
-    ) -> Result<LoxValue, RuntimeError> {
+    ) -> Result<LoxValue, InterpreterError> {
         let right = self.evaluate(&right, env)?;
 
         match operator.token_type {
@@ -183,7 +232,7 @@ impl<'a> Interpreter<'a> {
         operator: &Token,
         right: &Expr,
         env: &mut Environment,
-    ) -> Result<LoxValue, RuntimeError> {
+    ) -> Result<LoxValue, InterpreterError> {
         let left = self.evaluate(&left, env)?;
         let right = self.evaluate(&right, env)?;
 
@@ -210,12 +259,12 @@ impl<'a> Interpreter<'a> {
         }
     }
 
-    fn error(&self, token: &Token, message: &str) -> RuntimeError {
-        RuntimeError(token.clone(), String::from(message))
+    fn error(&self, token: &Token, message: &str) -> InterpreterError {
+        InterpreterError::RuntimeError(token.clone(), String::from(message))
     }
 
-    fn error_number_operand(&self, token: &Token) -> Result<LoxValue, RuntimeError> {
-        Err(RuntimeError(
+    fn error_number_operand(&self, token: &Token) -> Result<LoxValue, InterpreterError> {
+        Err(InterpreterError::RuntimeError(
             token.clone(),
             String::from("Operands must be numbers"),
         ))
