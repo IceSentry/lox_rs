@@ -2,16 +2,13 @@ use crate::{
     environment::Environment,
     function::Function,
     interpreter::Interpreter,
-    logger::Logger,
+    logger::LoggerImpl,
     parser::{Parser, ParserError},
     scanner::Scanner,
 };
 
 use float_cmp::*;
-use std::{
-    fmt,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::{cell::RefCell, fmt, rc::Rc};
 
 #[derive(Clone)]
 pub enum LoxValue {
@@ -62,8 +59,8 @@ impl fmt::Display for LoxValue {
 }
 
 pub struct Lox<'a> {
-    pub environment: Environment,
-    pub logger: &'a mut dyn Logger,
+    pub logger: &'a Rc<RefCell<LoggerImpl<'a>>>,
+    pub interpreter: Interpreter<'a>,
 }
 
 pub enum LoxError {
@@ -71,23 +68,10 @@ pub enum LoxError {
 }
 
 impl<'a> Lox<'a> {
-    pub fn new(logger: &'a mut dyn Logger) -> Self {
-        let globals = Environment::default();
-        let clock_fn = Function::Native(
-            0,
-            Box::new(|_args: &Vec<LoxValue>| {
-                LoxValue::Number(
-                    SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .expect("Could not retrieve time.")
-                        .as_millis() as f64,
-                )
-            }),
-        );
-        globals.declare(&String::from("clock"), LoxValue::Function(clock_fn));
+    pub fn new(logger: &'a Rc<RefCell<LoggerImpl<'a>>>) -> Self {
         Lox {
             logger,
-            environment: globals,
+            interpreter: Interpreter::new(logger),
         }
     }
 
@@ -97,8 +81,7 @@ impl<'a> Lox<'a> {
         let mut parser = Parser::new(tokens.to_vec(), self.logger);
         match parser.parse() {
             Ok(statements) => {
-                let mut interpreter = Interpreter::new(self.logger);
-                interpreter.interpret(&statements, &mut self.environment);
+                self.interpreter.interpret(&statements);
                 Ok(())
             }
             Err(err) => Err(LoxError::Parser(err)),

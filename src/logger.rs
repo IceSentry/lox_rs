@@ -2,14 +2,20 @@ use crate::{
     interpreter::RuntimeError,
     token::{Position, Token, TokenType},
 };
+use enum_dispatch::*;
 use std::io::Stdout;
 use std::io::Write;
 
+#[enum_dispatch(Logger)]
+pub enum LoggerImpl<'a> {
+    DefaultLogger(DefaultLogger),
+    TestLogger(TestLogger<'a>),
+}
+
+#[enum_dispatch]
 pub trait Logger {
     fn println(&mut self, message: String);
-
     fn println_debug(&mut self, message: String);
-
     fn println_repl(&mut self, message: String);
 
     fn error(&mut self, token: &Token, message: String) {
@@ -69,4 +75,24 @@ impl Logger for DefaultLogger {
             self.println(format!("=> {}", message));
         }
     }
+}
+
+pub struct TestLogger<'a> {
+    pub output: &'a mut Vec<u8>,
+}
+
+impl<'a> TestLogger<'a> {
+    #[allow(dead_code)]
+    pub fn new(output: &'a mut Vec<u8>) -> Self {
+        TestLogger { output }
+    }
+}
+
+impl<'a> Logger for TestLogger<'a> {
+    fn println(&mut self, message: String) {
+        writeln!(self.output, "{}", message).expect("Failed to write");
+    }
+
+    fn println_debug(&mut self, _message: String) {}
+    fn println_repl(&mut self, _message: String) {}
 }

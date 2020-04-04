@@ -1,29 +1,14 @@
-use crate::{logger::Logger, lox::Lox};
-use std::io::Write;
-
-pub struct TestLogger<'a> {
-    pub output: &'a mut Vec<u8>,
-}
-
-impl<'a> TestLogger<'a> {
-    pub fn new(output: &'a mut Vec<u8>) -> Self {
-        TestLogger { output }
-    }
-}
-
-impl<'a> Logger for TestLogger<'a> {
-    fn println(&mut self, message: String) {
-        writeln!(self.output, "{}", message).expect("Failed to write");
-    }
-
-    fn println_debug(&mut self, _message: String) {}
-    fn println_repl(&mut self, _message: String) {}
-}
+use crate::{
+    logger::{LoggerImpl, TestLogger},
+    lox::Lox,
+};
+use std::{cell::RefCell, rc::Rc};
 
 fn lox_run(source: &str) -> Vec<u8> {
     let mut output = Vec::new();
-    let mut logger = TestLogger::new(&mut output);
-    let mut lox = Lox::new(&mut logger);
+    let logger = TestLogger::new(&mut output);
+    let logger = Rc::new(RefCell::new(LoggerImpl::from(logger)));
+    let mut lox = Lox::new(&logger);
     let result = lox.run(source);
     assert!(result.is_ok());
     output.clone()

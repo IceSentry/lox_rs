@@ -1,17 +1,18 @@
 use crate::{
     expr::Expr,
     literal::Literal,
-    logger::Logger,
+    logger::{Logger, LoggerImpl},
     stmt::Stmt,
     token::{Token, TokenType},
 };
+use std::{cell::RefCell, rc::Rc};
 
 pub struct ParserError(String);
 
 pub struct Parser<'a> {
     tokens: Vec<Token>,
     current: usize,
-    logger: &'a mut dyn Logger,
+    logger: &'a Rc<RefCell<LoggerImpl<'a>>>,
 }
 
 macro_rules! match_tokens {
@@ -25,56 +26,8 @@ macro_rules! match_tokens {
     };
 }
 
-/// This parses expressions and statements according to this grammar:
-///
-/// program         -> declaration* EOF ;
-///
-/// declaration     -> let_decl
-///                  | statement ;
-///
-/// let_decl        -> "let" IDENTIFIER ( "=" expression )? ";" ;
-///
-/// statement       -> expr_stmt
-///                  | for_stmt
-///                  | if_stmt
-///                  | print_stmt
-///                  | while_stmt
-///                  | block ;
-///
-/// print_stmt      -> "print" expression ";" ;
-/// block           -> "{" declaration* "}" ;
-/// if_stmt         -> "if" expression "{" statement "}" ( "else" "{" statement "}" )? ;
-/// while_stmt      -> "while" "(" expression ")" statement ;
-/// for_stmt        -> "for" "(" ( let_decl | expr_stmt | ";" )
-///                              expression? ";"
-///                              expression? ")" statement ;
-/// expr_stmt       -> expression ";" ;
-///
-/// expression      -> assignment ;
-///
-/// assignment      -> IDENTIFIER "=" assignment
-///                  | logic_or ;
-///
-/// logic_or        -> logic_and ( "or" logic_and)* ;
-/// logic_and       -> equality ( "and" equality)* ;
-///
-/// equality        -> comparison ( ( "!=" | "==" ) comparison )* ;
-///
-/// comparison      -> addition ( ( ">" | ">=" | "<" | "<=" ) addition )* ;
-///
-/// addition        -> multiplication ( ( "-" | "+" ) multiplication )* ;
-///
-/// multiplication  -> unary ( ( "/" | "*" ) unary )* ;
-///
-/// unary           -> ( "!" | "-" ) unary
-///                  | primary ;
-///
-/// primary         -> "true" | "false" | "nil"
-///                  | NUMBER | STRING
-///                  | "(" expression ")"
-///                  | IDENTIFIER ;
 impl<'a> Parser<'a> {
-    pub fn new(tokens: Vec<Token>, logger: &'a mut dyn Logger) -> Self {
+    pub fn new(tokens: Vec<Token>, logger: &'a Rc<RefCell<LoggerImpl<'a>>>) -> Self {
         Parser {
             tokens,
             current: 0,
@@ -490,7 +443,7 @@ impl<'a> Parser<'a> {
 
     fn error_token(&mut self, token: &Token, message: &str) -> ParserError {
         let message = String::from(message);
-        self.logger.error(token, message.clone());
+        self.logger.borrow_mut().error(token, message.clone());
         ParserError(message)
     }
 }

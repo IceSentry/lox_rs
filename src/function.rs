@@ -12,7 +12,7 @@ impl Function {
             Function::Native(arity, _) => *arity,
         }
     }
-    pub fn call(&self, interpreter: &mut Interpreter, args: &Vec<LoxValue>) -> LoxValue {
+    pub fn call(&self, _interpreter: &mut Interpreter, args: &Vec<LoxValue>) -> LoxValue {
         match self {
             Function::Native(_, body) => body(args),
         }

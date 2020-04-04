@@ -14,13 +14,15 @@ mod token;
 mod tests;
 
 use std::{
+    cell::RefCell,
     fs,
     io::{self, prelude::*},
+    rc::Rc,
 };
 
 use structopt::StructOpt;
 
-use logger::{DefaultLogger, Logger};
+use logger::{DefaultLogger, LoggerImpl};
 use lox::{Lox, LoxError};
 
 #[derive(Debug, StructOpt)]
@@ -39,15 +41,16 @@ fn main() -> io::Result<()> {
 
     let mut logger = DefaultLogger::new(opt.debug, false);
     if let Some(input_path) = opt.input {
-        run_file(&mut logger, &input_path)
+        run_file(logger, &input_path)
     } else {
         logger.is_repl = true;
-        run_prompt(&mut logger)
+        run_prompt(logger)
     }
 }
 
-fn run_file(logger: &mut dyn Logger, path: &str) -> io::Result<()> {
-    let mut lox = Lox::new(logger);
+fn run_file(logger: DefaultLogger, path: &str) -> io::Result<()> {
+    let logger = Rc::new(RefCell::new(LoggerImpl::from(logger)));
+    let mut lox = Lox::new(&logger);
     let source = fs::read_to_string(path).expect("Failed to read file");
     let result = lox.run(&source);
     match result {
@@ -57,8 +60,9 @@ fn run_file(logger: &mut dyn Logger, path: &str) -> io::Result<()> {
     }
 }
 
-fn run_prompt(logger: &mut dyn Logger) -> io::Result<()> {
-    let mut lox = Lox::new(logger);
+fn run_prompt(logger: DefaultLogger) -> io::Result<()> {
+    let logger = Rc::new(RefCell::new(LoggerImpl::from(logger)));
+    let mut lox = Lox::new(&logger);
     println!("lox prompt: ");
     loop {
         print!("> ");

@@ -1,8 +1,9 @@
 use crate::{
     literal::Literal,
-    logger::Logger,
+    logger::{Logger, LoggerImpl},
     token::{Position, Token, TokenType},
 };
+use std::{cell::RefCell, rc::Rc};
 
 pub struct Scanner<'a> {
     source: String,
@@ -10,7 +11,7 @@ pub struct Scanner<'a> {
     start: usize,
     current: usize,
     position: Position,
-    logger: &'a mut dyn Logger,
+    logger: &'a Rc<RefCell<LoggerImpl<'a>>>,
 }
 
 fn is_alphanumeric(c: char) -> bool {
@@ -18,7 +19,7 @@ fn is_alphanumeric(c: char) -> bool {
 }
 
 impl<'a> Scanner<'a> {
-    pub fn new(logger: &'a mut dyn Logger, source: String) -> Self {
+    pub fn new(logger: &'a Rc<RefCell<LoggerImpl<'a>>>, source: String) -> Self {
         Scanner {
             source,
             tokens: Vec::new(),
@@ -101,7 +102,7 @@ impl<'a> Scanner<'a> {
             c if c.is_ascii_digit() => Some(self.number()),
             c if is_alphanumeric(c) => Some(self.identifier()),
             _ => {
-                self.logger.report_error(
+                self.logger.borrow_mut().report_error(
                     self.position,
                     "Scanner",
                     "",
@@ -184,7 +185,7 @@ impl<'a> Scanner<'a> {
         }
 
         if self.is_at_end() {
-            self.logger.report_error(
+            self.logger.borrow_mut().report_error(
                 self.position,
                 "Scanner",
                 "",
@@ -234,7 +235,7 @@ impl<'a> Scanner<'a> {
                     return None;
                 }
                 if self.is_at_end() {
-                    self.logger.report_error(
+                    self.logger.borrow_mut().report_error(
                         self.position,
                         "Scanner",
                         "",
