@@ -6,7 +6,7 @@ pub enum Literal {
     Number(f64),
     FALSE,
     TRUE,
-    Nil,
+    Nil, // TODO remove Nil when Option<LoxValue> exists
 }
 
 impl Display for Literal {

@@ -15,7 +15,7 @@ use std::{
 };
 
 pub struct Interpreter<'a> {
-    environment: Rc<RefCell<Environment>>,
+    pub environment: Rc<RefCell<Environment>>,
     // globals: Rc<RefCell<Environment>>,
     logger: &'a Rc<RefCell<LoggerImpl<'a>>>,
 }
@@ -47,9 +47,6 @@ impl<'a> Interpreter<'a> {
 
     pub fn interpret(&mut self, statements: &Vec<Stmt>) {
         for statement in statements {
-            self.logger
-                .borrow_mut()
-                .println_debug(format!("{}", statement));
             if let Err(error) = self.execute(statement, self.environment.clone()) {
                 self.logger.borrow_mut().runtime_error(error);
             }
@@ -61,12 +58,12 @@ impl<'a> Interpreter<'a> {
             Stmt::Expression(expr) => {
                 let value = self.evaluate(&expr, &mut env.borrow_mut())?;
                 self.logger.borrow_mut().println_repl(format!("{}", value));
-                Ok(StmtResult::Unit)
+                Ok(StmtResult::Value(LoxValue::Unit))
             }
             Stmt::Print(expr) => {
                 let value = self.evaluate(&expr, &mut env.borrow_mut())?;
                 self.logger.borrow_mut().println(format!("{}", value));
-                Ok(StmtResult::Unit)
+                Ok(StmtResult::Value(LoxValue::Unit))
             }
             Stmt::Let(token, initializer) => {
                 let value = match initializer {
@@ -76,7 +73,7 @@ impl<'a> Interpreter<'a> {
                     None => LoxValue::Nil,
                 };
                 env.borrow_mut().declare(&token.lexeme, value);
-                Ok(StmtResult::Unit)
+                Ok(StmtResult::Value(LoxValue::Unit))
             }
             Stmt::Block(statements) => {
                 let environment = Rc::new(RefCell::new(Environment::new(&env)));
@@ -90,10 +87,10 @@ impl<'a> Interpreter<'a> {
                                 return Ok(StmtResult::Continue);
                             }
                         }
-                        StmtResult::Unit => (),
+                        StmtResult::Value(_) => (),
                     }
                 }
-                Ok(StmtResult::Unit)
+                Ok(StmtResult::Value(LoxValue::Unit))
             }
             Stmt::If(condition, then_branch, else_branch) => {
                 if self
@@ -104,7 +101,7 @@ impl<'a> Interpreter<'a> {
                 } else if let Some(else_branch) = else_branch {
                     self.execute(else_branch, env)
                 } else {
-                    Ok(StmtResult::Unit)
+                    Ok(StmtResult::Value(LoxValue::Unit))
                 }
             }
             Stmt::While(condition, body) => {
@@ -116,10 +113,10 @@ impl<'a> Interpreter<'a> {
                     match self.execute(body, Rc::clone(&env))? {
                         StmtResult::Break => break,
                         StmtResult::Continue => continue,
-                        StmtResult::Unit => (),
+                        StmtResult::Value(_) => (),
                     }
                 }
-                Ok(StmtResult::Unit)
+                Ok(StmtResult::Value(LoxValue::Unit))
             }
             Stmt::Break(token) => match env.borrow_mut().is_inside_loop() {
                 true => Ok(StmtResult::Break),

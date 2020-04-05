@@ -25,6 +25,10 @@ macro_rules! match_tokens {
     };
 }
 
+// TODO
+// * add a context struct with a loop flag
+// * the context could also have information about undefined or immutable variables
+
 impl<'a> Parser<'a> {
     pub fn new(tokens: Vec<Token>, logger: &'a Rc<RefCell<LoggerImpl<'a>>>) -> Self {
         Parser {

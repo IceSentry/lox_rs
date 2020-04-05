@@ -1,13 +1,17 @@
 use crate::{
-    function::Function, interpreter::Interpreter, logger::LoggerImpl, parser::Parser,
-    scanner::Scanner, token::Token,
+    function::Function,
+    interpreter::Interpreter,
+    logger::{Logger, LoggerImpl},
+    parser::Parser,
+    scanner::Scanner,
+    token::Token,
 };
 
 use derive_new::*;
 use float_cmp::*;
 use std::{cell::RefCell, fmt, rc::Rc};
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum LoxValue {
     Nil,       // TODO implement Option<T> and remove nil
     Undefined, // This is used as a flag, there are no corresponding literal
@@ -58,6 +62,7 @@ impl fmt::Display for LoxValue {
 pub struct Lox<'a> {
     pub logger: &'a Rc<RefCell<LoggerImpl<'a>>>,
     pub interpreter: Interpreter<'a>,
+    print_ast: bool,
 }
 
 #[derive(new)]
@@ -75,10 +80,11 @@ pub enum LoxError {
 pub type LoxResult<T> = std::result::Result<T, LoxError>;
 
 impl<'a> Lox<'a> {
-    pub fn new(logger: &'a Rc<RefCell<LoggerImpl<'a>>>) -> Self {
+    pub fn new(logger: &'a Rc<RefCell<LoggerImpl<'a>>>, print_ast: bool) -> Self {
         Lox {
             logger,
             interpreter: Interpreter::new(logger),
+            print_ast,
         }
     }
 
@@ -87,7 +93,19 @@ impl<'a> Lox<'a> {
         let tokens = scanner.scan_tokens();
         let mut parser = Parser::new(tokens.to_vec(), self.logger);
         let statements = parser.parse()?;
-        self.interpreter.interpret(&statements);
+        if self.print_ast {
+            // TODO print to <file>.ast.lox
+            self.logger
+                .borrow_mut()
+                .println(format!("{:?}", self.interpreter.environment));
+            for statement in statements {
+                self.logger
+                    .borrow_mut()
+                    .println(format!("{:#?}", statement));
+            }
+        } else {
+            self.interpreter.interpret(&statements);
+        }
         Ok(())
     }
 }

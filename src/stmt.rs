@@ -1,4 +1,4 @@
-use crate::{expr::Expr, token::Token};
+use crate::{expr::Expr, lox::LoxValue, token::Token};
 use std::fmt::*;
 
 #[derive(Debug, Clone)]
@@ -16,7 +16,69 @@ pub enum Stmt {
 pub enum StmtResult {
     Break,
     Continue,
-    Unit,
+    Value(LoxValue),
+}
+
+macro_rules! indent {
+    ($dst:expr, $depth:expr) => {{
+        writeln!($dst, "")?;
+        for _ in 0..$depth {
+            write!($dst, "    ")?; // use \t ?
+        }
+        Ok(())
+    }};
+    ($dst:expr, $depth:expr, $($arg:tt)*) => {{
+        indent!($dst, $depth)?;
+        write!($dst, $($arg)*)
+    }};
+}
+
+fn write_block(f: &mut Formatter<'_>, stmts: &Vec<Box<Stmt>>, depth: i32) -> Result {
+    match stmts.len() {
+        0 => indent!(f, depth + 1, "(empty_block)"),
+        1 => write_body(f, &stmts[0], depth + 1),
+        _ => {
+            write!(f, "{{")?;
+            // indent!(f, depth, "{{")?;
+            for stmt in stmts {
+                write_body(f, stmt, depth + 1)?;
+            }
+            indent!(f, depth, "}}")
+        }
+    }
+}
+
+fn write_body(f: &mut Formatter<'_>, body: &Box<Stmt>, depth: i32) -> Result {
+    match body.as_ref() {
+        Stmt::Block(stmts) => write_block(f, stmts, depth),
+        Stmt::If(condition, then_branch, else_branch) => {
+            write_if(f, condition, then_branch, else_branch, depth)
+        }
+        Stmt::While(condition, body) => write_while(f, condition, body, depth),
+        _ => indent!(f, depth, "{}", body),
+    }
+}
+
+fn write_if(
+    f: &mut Formatter<'_>,
+    condition: &Expr,
+    then_branch: &Box<Stmt>,
+    else_branch: &Option<Box<Stmt>>,
+    depth: i32,
+) -> Result {
+    indent!(f, depth, "(if {} ", condition)?;
+    write_body(f, then_branch, depth)?;
+    if let Some(else_branch) = else_branch {
+        indent!(f, depth, "else ")?;
+        write_body(f, else_branch, depth)?;
+    }
+    write!(f, ")")
+}
+
+fn write_while(f: &mut Formatter<'_>, condition: &Expr, body: &Box<Stmt>, depth: i32) -> Result {
+    indent!(f, depth, "(while {} ", condition)?;
+    write_body(f, body, depth)?;
+    write!(f, ")")
 }
 
 impl Display for Stmt {
@@ -28,20 +90,11 @@ impl Display for Stmt {
                 Some(value) => write!(f, "(let {} = {})", name, value),
                 None => write!(f, "(let {} = None)", name),
             },
-            Stmt::Block(statements) => {
-                writeln!(f, "{{")?;
-                for stmt in statements {
-                    writeln!(f, "{}", stmt)?;
-                }
-                write!(f, "}}")
+            Stmt::Block(statements) => write_block(f, statements, 0),
+            Stmt::If(condition, then_branch, else_branch) => {
+                write_if(f, condition, then_branch, else_branch, 0)
             }
-            Stmt::If(condition, then_branch, else_branch) => match else_branch {
-                Some(else_branch) => {
-                    write!(f, "(if {} {} else {})", condition, then_branch, else_branch)
-                }
-                None => write!(f, "(if {} {})", condition, then_branch),
-            },
-            Stmt::While(condition, body) => write!(f, "(while {} {})", condition, body),
+            Stmt::While(condition, body) => write_while(f, condition, body, 0),
             Stmt::Break(_token) => write!(f, "(break)"),
             Stmt::Continue(_token) => write!(f, "(continue)"),
         }

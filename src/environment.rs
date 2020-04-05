@@ -4,7 +4,7 @@ use crate::{
 };
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-#[derive(Default, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct Environment {
     pub is_loop: bool,
     pub enclosing: Option<Rc<RefCell<Environment>>>,

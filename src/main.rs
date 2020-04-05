@@ -34,6 +34,10 @@ struct Opt {
 
     /// Input file
     input: Option<String>,
+
+    /// Print ast to <file>.ast.lox
+    #[structopt(long)]
+    ast: bool,
 }
 
 fn main() -> io::Result<()> {
@@ -41,16 +45,16 @@ fn main() -> io::Result<()> {
 
     let mut logger = DefaultLogger::new(opt.debug, false);
     if let Some(input_path) = opt.input {
-        run_file(logger, &input_path)
+        run_file(logger, &input_path, opt.ast)
     } else {
         logger.is_repl = true;
         run_prompt(logger)
     }
 }
 
-fn run_file(logger: DefaultLogger, path: &str) -> io::Result<()> {
+fn run_file(logger: DefaultLogger, path: &str, print_ast: bool) -> io::Result<()> {
     let logger = Rc::new(RefCell::new(LoggerImpl::from(logger)));
-    let mut lox = Lox::new(&logger);
+    let mut lox = Lox::new(&logger, print_ast);
     let source = fs::read_to_string(path).expect("Failed to read file");
     let result = lox.run(&source);
     match result {
@@ -62,7 +66,7 @@ fn run_file(logger: DefaultLogger, path: &str) -> io::Result<()> {
 
 fn run_prompt(logger: DefaultLogger) -> io::Result<()> {
     let logger = Rc::new(RefCell::new(LoggerImpl::from(logger)));
-    let mut lox = Lox::new(&logger);
+    let mut lox = Lox::new(&logger, false);
     println!("lox prompt: ");
     loop {
         print!("> ");

@@ -17,12 +17,22 @@ impl Function {
             Function::Native(_, body) => body(args),
         }
     }
-}
 
-impl Display for Function {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Function::Native(_, _) => write!(f, "<native fn>"),
         }
+    }
+}
+
+impl Display for Function {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        self.fmt(f)
+    }
+}
+
+impl fmt::Debug for Function {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.fmt(f)
     }
 }

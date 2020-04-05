@@ -8,7 +8,7 @@ fn lox_run(source: &str) -> Vec<u8> {
     let mut output = Vec::new();
     let logger = TestLogger::new(&mut output);
     let logger = Rc::new(RefCell::new(LoggerImpl::from(logger)));
-    let mut lox = Lox::new(&logger);
+    let mut lox = Lox::new(&logger, false);
     let result = lox.run(source);
     assert!(result.is_ok());
     output.clone()
