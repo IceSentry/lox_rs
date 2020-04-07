@@ -2,12 +2,12 @@ use crate::{
     environment::Environment,
     expr::Expr,
     function::Function,
-    literal::Literal,
     logger::{Logger, LoggerImpl},
     lox::{ErrorData, LoxError, LoxResult, LoxValue},
     stmt::{Stmt, StmtResult},
     token::{Token, TokenType},
 };
+use float_cmp::{ApproxEq, F64Margin};
 use std::{
     cell::RefCell,
     rc::Rc,
@@ -16,36 +16,39 @@ use std::{
 
 pub struct Interpreter<'a> {
     pub environment: Rc<RefCell<Environment>>,
-    // globals: Rc<RefCell<Environment>>,
     logger: &'a Rc<RefCell<LoggerImpl<'a>>>,
 }
 
-impl<'a> Interpreter<'a> {
-    pub fn new(logger: &'a Rc<RefCell<LoggerImpl<'a>>>) -> Self {
-        let globals = Rc::new(RefCell::new(Environment::default()));
-        let clock_fn = Function::Native(
+fn init_globals() -> Environment {
+    let mut globals = Environment::default();
+    globals.declare(
+        &String::from("clock"),
+        Function::Native(
             0,
-            Box::new(|_args: &Vec<LoxValue>| {
-                LoxValue::Number(
+            Box::new(|_| {
+                LoxValue::from(
                     SystemTime::now()
                         .duration_since(UNIX_EPOCH)
                         .expect("Could not retrieve time.")
                         .as_millis() as f64,
                 )
             }),
-        );
-        globals
-            .borrow_mut()
-            .declare(&String::from("clock"), LoxValue::Function(clock_fn));
+        )
+        .into(),
+    );
+    globals
+}
 
+impl<'a> Interpreter<'a> {
+    pub fn new(logger: &'a Rc<RefCell<LoggerImpl<'a>>>) -> Self {
+        let globals = Rc::new(RefCell::new(init_globals()));
         Interpreter {
             logger,
-            environment: Rc::clone(&globals),
-            // globals,
+            environment: globals,
         }
     }
 
-    pub fn interpret(&mut self, statements: &Vec<Stmt>) {
+    pub fn interpret(&mut self, statements: &[Stmt]) {
         for statement in statements {
             if let Err(error) = self.execute(statement, self.environment.clone()) {
                 self.logger.borrow_mut().runtime_error(error);
@@ -58,12 +61,12 @@ impl<'a> Interpreter<'a> {
             Stmt::Expression(expr) => {
                 let value = self.evaluate(&expr, &mut env.borrow_mut())?;
                 self.logger.borrow_mut().println_repl(format!("{}", value));
-                Ok(StmtResult::Value(LoxValue::Unit))
+                Ok(LoxValue::Unit.into())
             }
             Stmt::Print(expr) => {
                 let value = self.evaluate(&expr, &mut env.borrow_mut())?;
                 self.logger.borrow_mut().println(format!("{}", value));
-                Ok(StmtResult::Value(LoxValue::Unit))
+                Ok(LoxValue::Unit.into())
             }
             Stmt::Let(token, initializer) => {
                 let value = match initializer {
@@ -73,7 +76,7 @@ impl<'a> Interpreter<'a> {
                     None => LoxValue::Nil,
                 };
                 env.borrow_mut().declare(&token.lexeme, value);
-                Ok(StmtResult::Value(LoxValue::Unit))
+                Ok(LoxValue::Unit.into())
             }
             Stmt::Block(statements) => {
                 let environment = Rc::new(RefCell::new(Environment::new(&env)));
@@ -90,7 +93,7 @@ impl<'a> Interpreter<'a> {
                         StmtResult::Value(_) => (),
                     }
                 }
-                Ok(StmtResult::Value(LoxValue::Unit))
+                Ok(LoxValue::Unit.into())
             }
             Stmt::If(condition, then_branch, else_branch) => {
                 if self
@@ -101,7 +104,7 @@ impl<'a> Interpreter<'a> {
                 } else if let Some(else_branch) = else_branch {
                     self.execute(else_branch, env)
                 } else {
-                    Ok(StmtResult::Value(LoxValue::Unit))
+                    Ok(LoxValue::Unit.into())
                 }
             }
             Stmt::While(condition, body) => {
@@ -116,16 +119,22 @@ impl<'a> Interpreter<'a> {
                         StmtResult::Value(_) => (),
                     }
                 }
-                Ok(StmtResult::Value(LoxValue::Unit))
+                Ok(LoxValue::Unit.into())
             }
-            Stmt::Break(token) => match env.borrow_mut().is_inside_loop() {
-                true => Ok(StmtResult::Break),
-                false => Err(self.error(&token, "'break' must be inside a loop")),
-            },
-            Stmt::Continue(token) => match env.borrow_mut().is_inside_loop() {
-                true => Ok(StmtResult::Continue),
-                false => Err(self.error(&token, "'continue' must be inside a loop")),
-            },
+            Stmt::Break(token) => {
+                if env.borrow_mut().is_inside_loop() {
+                    Ok(StmtResult::Break)
+                } else {
+                    Err(error(&token, "'break' must be inside a loop"))
+                }
+            }
+            Stmt::Continue(token) => {
+                if env.borrow_mut().is_inside_loop() {
+                    Ok(StmtResult::Continue)
+                } else {
+                    Err(error(&token, "'continue' must be inside a loop"))
+                }
+            }
         }
     }
 
@@ -135,11 +144,11 @@ impl<'a> Interpreter<'a> {
                 self.evaluate_binary_op(left, operator, right, env)
             }
             Expr::Grouping(expr) => self.evaluate(expr, env),
-            Expr::Literal(literal) => self.evaluate_literal(literal),
+            Expr::Literal(literal) => Ok(literal.clone().into()),
             Expr::Unary(operator, right) => self.evaluate_unary_op(operator, right, env),
             Expr::Variable(token) => match env.get(&token)? {
                 LoxValue::Undefined => {
-                    Err(self.error(token, &format!("{} is undefined!", token.lexeme)))
+                    Err(error(token, &format!("{} is undefined!", token.lexeme)))
                 }
                 value => Ok(value),
             },
@@ -157,7 +166,7 @@ impl<'a> Interpreter<'a> {
                 }
                 self.evaluate(right, env)
             }
-            Expr::FunctionCall(callee, paren, args) => {
+            Expr::Call(callee, paren, args) => {
                 let callee = self.evaluate(callee, env)?;
                 let args: LoxResult<Vec<LoxValue>> =
                     args.iter().map(|arg| self.evaluate(arg, env)).collect();
@@ -165,31 +174,22 @@ impl<'a> Interpreter<'a> {
                 match callee {
                     LoxValue::Function(function) => {
                         if args.len() > function.arity() {
-                            return Err(self.error(
+                            Err(error(
                                 paren,
                                 &format!(
                                     "Expected {} arguments but got {}",
                                     function.arity(),
                                     args.len()
                                 ),
-                            ));
+                            ))
+                        } else {
+                            Ok(function.call(self, &args))
                         }
-                        Ok(function.call(self, &args))
                     }
-                    _ => Err(self.error(paren, "Can only call functions and classes")),
+                    _ => Err(error(paren, "Can only call functions and classes")),
                 }
             }
         }
-    }
-
-    fn evaluate_literal(&self, literal: &Literal) -> LoxResult<LoxValue> {
-        Ok(match literal {
-            Literal::String(value) => LoxValue::String(value.clone()),
-            Literal::Number(value) => LoxValue::Number(*value),
-            Literal::FALSE => LoxValue::Boolean(false),
-            Literal::TRUE => LoxValue::Boolean(true),
-            Literal::Nil => LoxValue::Nil,
-        })
     }
 
     fn evaluate_unary_op(
@@ -204,7 +204,7 @@ impl<'a> Interpreter<'a> {
             TokenType::BANG => Ok(LoxValue::Boolean(!right.is_truthy())),
             TokenType::MINUS => match right {
                 LoxValue::Number(value) => Ok(LoxValue::Number(-value)),
-                _ => Err(self.error(operator, "Operand must be a number")),
+                _ => Err(error(operator, "Operand must be a number")),
             },
             _ => unreachable!(),
         }
@@ -220,37 +220,59 @@ impl<'a> Interpreter<'a> {
         let left = self.evaluate(&left, env)?;
         let right = self.evaluate(&right, env)?;
 
-        use LoxValue::*;
-        use TokenType::*;
         match (&operator.token_type, (&left, &right)) {
-            (MINUS, (Number(left), Number(right))) => Ok(Number(left - right)),
-            (SLASH, (Number(left), Number(right))) => match right == &0.0 {
-                true => Err(self.error(operator, "Division by zero")),
-                false => Ok(Number(left / right)),
-            },
-            (STAR, (Number(left), Number(right))) => Ok(Number(left * right)),
-            (PLUS, (Number(left), Number(right))) => Ok(Number(left + right)),
-            (PLUS, (String(left), String(right))) => Ok(String(format!("{}{}", left, right))),
-            (PLUS, (String(left), Number(right))) => Ok(String(format!("{}{}", left, right))),
-            (PLUS, _) => Err(self.error(operator, "Operands must be two numbers or two strings")),
-            (GREATER, (Number(left), Number(right))) => Ok(Boolean(left > right)),
-            (GREATER_EQUAL, (Number(left), Number(right))) => Ok(Boolean(left >= right)),
-            (LESS, (Number(left), Number(right))) => Ok(Boolean(left < right)),
-            (LESS_EQUAL, (Number(left), Number(right))) => Ok(Boolean(left <= right)),
-            (BANG_EQUAL, _) => Ok(Boolean(!left.is_equal(right))),
-            (EQUAL_EQUAL, _) => Ok(Boolean(left.is_equal(right))),
-            (_, _) => self.error_number_operand(operator),
+            (TokenType::MINUS, (LoxValue::Number(left), LoxValue::Number(right))) => {
+                Ok(LoxValue::Number(left - right))
+            }
+            (TokenType::SLASH, (LoxValue::Number(left), LoxValue::Number(right))) => {
+                if right.approx_eq(0.0, F64Margin::default()) {
+                    Err(error(operator, "Division by zero"))
+                } else {
+                    Ok(LoxValue::Number(left / right))
+                }
+            }
+            (TokenType::STAR, (LoxValue::Number(left), LoxValue::Number(right))) => {
+                Ok(LoxValue::Number(left * right))
+            }
+            (TokenType::PLUS, (LoxValue::Number(left), LoxValue::Number(right))) => {
+                Ok(LoxValue::Number(left + right))
+            }
+            (TokenType::PLUS, (LoxValue::String(left), LoxValue::String(right))) => {
+                Ok(LoxValue::String(format!("{}{}", left, right)))
+            }
+            (TokenType::PLUS, (LoxValue::String(left), LoxValue::Number(right))) => {
+                Ok(LoxValue::String(format!("{}{}", left, right)))
+            }
+            (TokenType::PLUS, _) => Err(error(
+                operator,
+                "Operands must be two numbers or two strings",
+            )),
+            (TokenType::GREATER, (LoxValue::Number(left), LoxValue::Number(right))) => {
+                Ok(LoxValue::Boolean(left > right))
+            }
+            (TokenType::GREATER_EQUAL, (LoxValue::Number(left), LoxValue::Number(right))) => {
+                Ok(LoxValue::Boolean(left >= right))
+            }
+            (TokenType::LESS, (LoxValue::Number(left), LoxValue::Number(right))) => {
+                Ok(LoxValue::Boolean(left < right))
+            }
+            (TokenType::LESS_EQUAL, (LoxValue::Number(left), LoxValue::Number(right))) => {
+                Ok(LoxValue::Boolean(left <= right))
+            }
+            (TokenType::BANG_EQUAL, _) => Ok(LoxValue::Boolean(!left.is_equal(right))),
+            (TokenType::EQUAL_EQUAL, _) => Ok(LoxValue::Boolean(left.is_equal(right))),
+            (_, _) => error_number_operand(operator),
         }
     }
+}
 
-    fn error(&self, token: &Token, message: &str) -> LoxError {
-        LoxError::Runtime(ErrorData::new(token.clone(), String::from(message)))
-    }
+fn error(token: &Token, message: &str) -> LoxError {
+    LoxError::Runtime(ErrorData::new(token.clone(), String::from(message)))
+}
 
-    fn error_number_operand(&self, token: &Token) -> LoxResult<LoxValue> {
-        Err(LoxError::Runtime(ErrorData::new(
-            token.clone(),
-            String::from("Operands must be numbers"),
-        )))
-    }
+fn error_number_operand(token: &Token) -> LoxResult<LoxValue> {
+    Err(LoxError::Runtime(ErrorData::new(
+        token.clone(),
+        String::from("Operands must be numbers"),
+    )))
 }

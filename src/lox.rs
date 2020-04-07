@@ -1,14 +1,15 @@
 use crate::{
     function::Function,
     interpreter::Interpreter,
+    literal::Literal,
     logger::{Logger, LoggerImpl},
     parser::Parser,
     scanner::Scanner,
     token::Token,
 };
 
-use derive_new::*;
-use float_cmp::*;
+use derive_new::new;
+use float_cmp::{ApproxEq, F64Margin};
 use std::{cell::RefCell, fmt, rc::Rc};
 
 #[derive(Debug, Clone)]
@@ -22,23 +23,63 @@ pub enum LoxValue {
     Unit,
 }
 
+impl From<f64> for LoxValue {
+    fn from(value: f64) -> Self {
+        LoxValue::Number(value)
+    }
+}
+
+impl From<String> for LoxValue {
+    fn from(value: String) -> Self {
+        LoxValue::String(value)
+    }
+}
+
+impl From<bool> for LoxValue {
+    fn from(value: bool) -> Self {
+        LoxValue::Boolean(value)
+    }
+}
+
+impl From<()> for LoxValue {
+    fn from(_value: ()) -> Self {
+        LoxValue::Unit
+    }
+}
+
+impl From<Literal> for LoxValue {
+    fn from(literal: Literal) -> Self {
+        match literal {
+            Literal::String(value) => LoxValue::from(value),
+            Literal::Number(value) => LoxValue::from(value),
+            Literal::FALSE => LoxValue::from(false),
+            Literal::TRUE => LoxValue::from(true),
+            Literal::Nil => LoxValue::Nil,
+        }
+    }
+}
+
+impl From<Function> for LoxValue {
+    fn from(function: Function) -> Self {
+        LoxValue::Function(function)
+    }
+}
+
 impl LoxValue {
     pub fn is_truthy(&self) -> bool {
-        use LoxValue::*;
         match self {
-            Nil | Undefined => false,
-            Boolean(value) => *value,
+            LoxValue::Nil | LoxValue::Undefined => false,
+            LoxValue::Boolean(value) => *value,
             _ => true,
         }
     }
 
     pub fn is_equal(&self, other: LoxValue) -> bool {
-        use LoxValue::*;
         match (self, other) {
-            (Nil, Nil) => true,
-            (Number(a), Number(b)) => a.approx_eq(b, F64Margin::default()),
-            (String(ref a), String(ref b)) => *a == *b,
-            (Boolean(a), Boolean(b)) => *a == b,
+            (LoxValue::Nil, LoxValue::Nil) => true,
+            (LoxValue::Number(a), LoxValue::Number(b)) => a.approx_eq(b, F64Margin::default()),
+            (LoxValue::String(ref a), LoxValue::String(ref b)) => *a == *b,
+            (LoxValue::Boolean(a), LoxValue::Boolean(b)) => *a == b,
             _ => false, // no type coercion
         }
     }
@@ -46,15 +87,14 @@ impl LoxValue {
 
 impl fmt::Display for LoxValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use LoxValue::*;
         match self {
-            Nil => write!(f, "nil"),
-            Undefined => write!(f, "undefined"),
-            Number(value) => write!(f, "{}", value),
-            Boolean(value) => write!(f, "{}", value),
-            String(value) => write!(f, "{}", value),
-            Function(function) => function.fmt(f),
-            Unit => write!(f, "()"),
+            LoxValue::Nil => write!(f, "nil"),
+            LoxValue::Undefined => write!(f, "undefined"),
+            LoxValue::Number(value) => write!(f, "{}", value),
+            LoxValue::Boolean(value) => write!(f, "{}", value),
+            LoxValue::String(value) => write!(f, "{}", value),
+            LoxValue::Function(function) => function.fmt(f),
+            LoxValue::Unit => write!(f, "()"),
         }
     }
 }

@@ -1,6 +1,6 @@
 #[rustfmt::skip]
 #[allow(non_camel_case_types)]
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum TokenType {
     // Single-character tokens
     LEFT_PAREN, RIGHT_PAREN, LEFT_BRACE, RIGHT_BRACE, 
@@ -24,10 +24,10 @@ pub enum TokenType {
 }
 
 use crate::literal::Literal;
-use derive_new::*;
+use derive_new::new;
 use fmt::Display;
 use std::fmt;
-use std::fmt::*;
+use std::fmt::Debug;
 
 #[derive(new, Debug, Clone)]
 pub struct Token {

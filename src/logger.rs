@@ -2,7 +2,7 @@ use crate::{
     lox::LoxError,
     token::{Position, Token, TokenType},
 };
-use enum_dispatch::*;
+use enum_dispatch::enum_dispatch;
 use std::io::Stdout;
 use std::io::Write;
 

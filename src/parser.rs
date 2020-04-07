@@ -142,9 +142,9 @@ impl<'a> Parser<'a> {
 
         let mut body = self.statement()?;
         if let Some(increment) = increment {
-            body = Stmt::Block(vec![Box::new(body), Box::new(Stmt::Expression(increment))]);
+            body = Stmt::Block(vec![body, Stmt::Expression(increment)]);
         }
-        if let None = condition {
+        if condition.is_none() {
             condition = Some(Expr::Literal(Literal::TRUE))
         }
         body = Stmt::While(
@@ -152,7 +152,7 @@ impl<'a> Parser<'a> {
             Box::new(body),
         );
         if let Some(initializer) = initializer {
-            body = Stmt::Block(vec![Box::new(initializer), Box::new(body)]);
+            body = Stmt::Block(vec![initializer, body]);
         }
         Ok(body)
     }
@@ -185,10 +185,10 @@ impl<'a> Parser<'a> {
     }
 
     /// block -> "{" declaration* "}" ;
-    fn block(&mut self) -> LoxResult<Vec<Box<Stmt>>> {
+    fn block(&mut self) -> LoxResult<Vec<Stmt>> {
         let mut statements = Vec::new();
         while !self.check_token(TokenType::RIGHT_BRACE) && !self.is_at_end() {
-            statements.push(Box::new(self.declaration()?));
+            statements.push(self.declaration()?);
         }
         self.consume(TokenType::RIGHT_BRACE, "Expected '}' after block")?;
         Ok(statements)
@@ -264,8 +264,7 @@ impl<'a> Parser<'a> {
     /// equality -> comparison ( ( "!=" | "==" ) comparison )* ;
     fn equality(&mut self) -> LoxResult<Expr> {
         let mut expr = self.comparison()?;
-        use TokenType::*;
-        while match_tokens!(self, BANG_EQUAL, EQUAL_EQUAL) {
+        while match_tokens!(self, TokenType::BANG_EQUAL, TokenType::EQUAL_EQUAL) {
             let operator = self.previous().clone();
             let right = Box::new(self.comparison()?);
             expr = Expr::Binary(Box::new(expr), operator.clone(), right);
@@ -276,8 +275,13 @@ impl<'a> Parser<'a> {
     /// comparison -> addition ( ( ">" | ">=" | "<" | "<=" ) addition )* ;
     fn comparison(&mut self) -> LoxResult<Expr> {
         let mut expr = self.addition()?;
-        use TokenType::*;
-        while match_tokens!(self, GREATER, GREATER_EQUAL, LESS, LESS_EQUAL) {
+        while match_tokens!(
+            self,
+            TokenType::GREATER,
+            TokenType::GREATER_EQUAL,
+            TokenType::LESS,
+            TokenType::LESS_EQUAL
+        ) {
             let operator = self.previous().clone();
             let right = Box::new(self.addition()?);
             expr = Expr::Binary(Box::new(expr), operator.clone(), right);
@@ -288,8 +292,7 @@ impl<'a> Parser<'a> {
     /// addition -> multiplication ( ( "-" | "+" ) multiplication )* ;
     fn addition(&mut self) -> LoxResult<Expr> {
         let mut expr = self.multiplication()?;
-        use TokenType::*;
-        while match_tokens!(self, MINUS, PLUS) {
+        while match_tokens!(self, TokenType::MINUS, TokenType::PLUS) {
             let operator = self.previous().clone();
             let right = Box::new(self.multiplication()?);
             expr = Expr::Binary(Box::new(expr), operator.clone(), right);
@@ -300,8 +303,7 @@ impl<'a> Parser<'a> {
     /// multiplication -> unary ( ( "/" | "*" ) unary )* ;
     fn multiplication(&mut self) -> LoxResult<Expr> {
         let mut expr = self.unary()?;
-        use TokenType::*;
-        while match_tokens!(self, SLASH, STAR) {
+        while match_tokens!(self, TokenType::SLASH, TokenType::STAR) {
             let operator = self.previous().clone();
             let right = Box::new(self.unary()?);
             expr = Expr::Binary(Box::new(expr), operator.clone(), right);
@@ -312,11 +314,10 @@ impl<'a> Parser<'a> {
     /// unary -> ( "!" | "-" ) unary
     ///        | function_call ;
     fn unary(&mut self) -> LoxResult<Expr> {
-        use TokenType::*;
-        if match_tokens!(self, BANG, MINUS) {
+        if match_tokens!(self, TokenType::BANG, TokenType::MINUS) {
             let operator = self.previous().clone();
             let right = Box::new(self.unary()?);
-            Ok(Expr::Unary(operator.clone(), right))
+            Ok(Expr::Unary(operator, right))
         } else {
             self.function_call()
         }
@@ -350,11 +351,7 @@ impl<'a> Parser<'a> {
             }
         }
         let paren = self.consume(TokenType::RIGHT_PAREN, "Expected ')' after arguments")?;
-        Ok(Expr::FunctionCall(
-            Box::new(callee),
-            paren.clone(),
-            Box::new(args),
-        ))
+        Ok(Expr::Call(Box::new(callee), paren.clone(), args))
     }
 
     /// primary -> "true" | "false" | "nil"
@@ -362,17 +359,23 @@ impl<'a> Parser<'a> {
     ///          | "(" expression ")"
     ///          | IDENTIFIER ;
     fn primary(&mut self) -> LoxResult<Expr> {
-        use TokenType::*;
-        if match_tokens!(self, FALSE, TRUE, NIL, NUMBER, STRING) {
+        if match_tokens!(
+            self,
+            TokenType::FALSE,
+            TokenType::TRUE,
+            TokenType::NIL,
+            TokenType::NUMBER,
+            TokenType::STRING
+        ) {
             match self.previous().clone().literal {
                 Some(literal) => Ok(Expr::Literal(literal)),
                 _ => Err(self.error("Expected literal")),
             }
-        } else if match_tokens!(self, IDENTIFIER) {
+        } else if match_tokens!(self, TokenType::IDENTIFIER) {
             Ok(Expr::Variable(self.previous().clone()))
-        } else if match_tokens!(self, LEFT_PAREN) {
+        } else if match_tokens!(self, TokenType::LEFT_PAREN) {
             let expr = self.expression()?;
-            self.consume(RIGHT_PAREN, "Expected ')' after expression")?;
+            self.consume(TokenType::RIGHT_PAREN, "Expected ')' after expression")?;
             Ok(Expr::Grouping(Box::new(expr)))
         } else {
             Err(self.error("Expected expression"))
@@ -391,14 +394,21 @@ impl<'a> Parser<'a> {
     fn synchronise(&mut self) {
         self.advance();
 
-        use TokenType::*;
         while !self.is_at_end() {
-            if self.previous().token_type == SEMICOLON {
+            if self.previous().token_type == TokenType::SEMICOLON {
                 return;
             }
 
             match self.peek().token_type {
-                CLASS | FUN | LET | FOR | IF | WHILE | PRINT | RETURN | LOOP => return,
+                TokenType::CLASS
+                | TokenType::FUN
+                | TokenType::LET
+                | TokenType::FOR
+                | TokenType::IF
+                | TokenType::WHILE
+                | TokenType::PRINT
+                | TokenType::RETURN
+                | TokenType::LOOP => return,
                 _ => self.advance(),
             };
         }

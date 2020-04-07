@@ -4,9 +4,16 @@ use crate::{
 };
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
+// TODO
+// * put each env in a list and reference the id
+// * env could have a scope type
+// * add continue() and break().
+//      They should unwind the env to the nearest loop scope
+//      WARN This will break the desugared for loop
+
 #[derive(Debug, Default, Clone)]
 pub struct Environment {
-    pub is_loop: bool,
+    pub is_loop: bool, // TODO scope type: function, loop, block
     pub enclosing: Option<Rc<RefCell<Environment>>>,
     values: HashMap<String, LoxValue>,
 }
@@ -38,8 +45,8 @@ impl Environment {
         }
     }
 
-    pub fn declare(&mut self, name: &String, value: LoxValue) {
-        self.values.insert(name.clone(), value);
+    pub fn declare(&mut self, name: &str, value: LoxValue) {
+        self.values.insert(name.to_string(), value);
     }
 
     pub fn get(&self, token: &Token) -> LoxResult<LoxValue> {

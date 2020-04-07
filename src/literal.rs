@@ -1,4 +1,4 @@
-use std::fmt::*;
+use std::fmt::{Debug, Display, Formatter, Result};
 
 #[derive(Debug, Clone)]
 pub enum Literal {

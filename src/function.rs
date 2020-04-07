@@ -3,7 +3,7 @@ use std::fmt::{self, Display, Formatter};
 
 #[derive(Clone)]
 pub enum Function {
-    Native(usize, Box<fn(&Vec<LoxValue>) -> LoxValue>),
+    Native(usize, Box<fn(&[LoxValue]) -> LoxValue>),
 }
 
 impl Function {
@@ -12,7 +12,7 @@ impl Function {
             Function::Native(arity, _) => *arity,
         }
     }
-    pub fn call(&self, _interpreter: &mut Interpreter, args: &Vec<LoxValue>) -> LoxValue {
+    pub fn call(&self, _interpreter: &mut Interpreter, args: &[LoxValue]) -> LoxValue {
         match self {
             Function::Native(_, body) => body(args),
         }

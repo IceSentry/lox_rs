@@ -1,11 +1,11 @@
 use crate::{expr::Expr, lox::LoxValue, token::Token};
-use std::fmt::*;
+use std::fmt::{Debug, Display, Formatter, Result};
 
 #[derive(Debug, Clone)]
 pub enum Stmt {
     Expression(Expr),
     Print(Expr),
-    Block(Vec<Box<Stmt>>),
+    Block(Vec<Stmt>),
     Let(Token, Option<Expr>),
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),
     While(Expr, Box<Stmt>),
@@ -17,6 +17,12 @@ pub enum StmtResult {
     Break,
     Continue,
     Value(LoxValue),
+}
+
+impl From<LoxValue> for StmtResult {
+    fn from(value: LoxValue) -> Self {
+        StmtResult::Value(value)
+    }
 }
 
 macro_rules! indent {
@@ -33,7 +39,7 @@ macro_rules! indent {
     }};
 }
 
-fn write_block(f: &mut Formatter<'_>, stmts: &Vec<Box<Stmt>>, depth: i32) -> Result {
+fn write_block(f: &mut Formatter<'_>, stmts: &[Stmt], depth: i32) -> Result {
     match stmts.len() {
         0 => indent!(f, depth + 1, "(empty_block)"),
         1 => write_body(f, &stmts[0], depth + 1),
@@ -48,8 +54,8 @@ fn write_block(f: &mut Formatter<'_>, stmts: &Vec<Box<Stmt>>, depth: i32) -> Res
     }
 }
 
-fn write_body(f: &mut Formatter<'_>, body: &Box<Stmt>, depth: i32) -> Result {
-    match body.as_ref() {
+fn write_body(f: &mut Formatter<'_>, body: &Stmt, depth: i32) -> Result {
+    match body {
         Stmt::Block(stmts) => write_block(f, stmts, depth),
         Stmt::If(condition, then_branch, else_branch) => {
             write_if(f, condition, then_branch, else_branch, depth)
@@ -62,7 +68,7 @@ fn write_body(f: &mut Formatter<'_>, body: &Box<Stmt>, depth: i32) -> Result {
 fn write_if(
     f: &mut Formatter<'_>,
     condition: &Expr,
-    then_branch: &Box<Stmt>,
+    then_branch: &Stmt,
     else_branch: &Option<Box<Stmt>>,
     depth: i32,
 ) -> Result {
@@ -75,7 +81,7 @@ fn write_if(
     write!(f, ")")
 }
 
-fn write_while(f: &mut Formatter<'_>, condition: &Expr, body: &Box<Stmt>, depth: i32) -> Result {
+fn write_while(f: &mut Formatter<'_>, condition: &Expr, body: &Stmt, depth: i32) -> Result {
     indent!(f, depth, "(while {} ", condition)?;
     write_body(f, body, depth)?;
     write!(f, ")")

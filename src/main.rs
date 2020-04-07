@@ -1,3 +1,6 @@
+#![warn(clippy::all)]
+// #![warn(clippy::pedantic)]
+
 mod environment;
 mod expr;
 mod function;

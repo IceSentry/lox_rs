@@ -47,48 +47,47 @@ impl<'a> Scanner<'a> {
     }
 
     fn scan_token(&mut self) -> Option<(TokenType, Option<Literal>)> {
-        use TokenType::*;
         let c = self.advance();
         match c {
-            '(' => Some((LEFT_PAREN, None)),
-            ')' => Some((RIGHT_PAREN, None)),
-            '{' => Some((LEFT_BRACE, None)),
-            '}' => Some((RIGHT_BRACE, None)),
-            ',' => Some((COMMA, None)),
-            '.' => Some((DOT, None)),
-            '-' => Some((MINUS, None)),
-            '+' => Some((PLUS, None)),
-            ';' => Some((SEMICOLON, None)),
-            '*' => Some((STAR, None)),
+            '(' => Some((TokenType::LEFT_PAREN, None)),
+            ')' => Some((TokenType::RIGHT_PAREN, None)),
+            '{' => Some((TokenType::LEFT_BRACE, None)),
+            '}' => Some((TokenType::RIGHT_BRACE, None)),
+            ',' => Some((TokenType::COMMA, None)),
+            '.' => Some((TokenType::DOT, None)),
+            '-' => Some((TokenType::MINUS, None)),
+            '+' => Some((TokenType::PLUS, None)),
+            ';' => Some((TokenType::SEMICOLON, None)),
+            '*' => Some((TokenType::STAR, None)),
             '!' => Some((
                 if self.advance_if_match('=') {
-                    BANG_EQUAL
+                    TokenType::BANG_EQUAL
                 } else {
-                    BANG
+                    TokenType::BANG
                 },
                 None,
             )),
             '=' => Some((
                 if self.advance_if_match('=') {
-                    EQUAL_EQUAL
+                    TokenType::EQUAL_EQUAL
                 } else {
-                    EQUAL
+                    TokenType::EQUAL
                 },
                 None,
             )),
             '<' => Some((
                 if self.advance_if_match('=') {
-                    LESS_EQUAL
+                    TokenType::LESS_EQUAL
                 } else {
-                    LESS
+                    TokenType::LESS
                 },
                 None,
             )),
             '>' => Some((
                 if self.advance_if_match('=') {
-                    GREATER_EQUAL
+                    TokenType::GREATER_EQUAL
                 } else {
-                    GREATER
+                    TokenType::GREATER
                 },
                 None,
             )),
@@ -168,11 +167,11 @@ impl<'a> Scanner<'a> {
         }
         match self.source.chars().nth(self.current) {
             Some(c) => {
-                if c != expected {
-                    false
-                } else {
+                if c == expected {
                     self.current += 1;
                     true
+                } else {
+                    false
                 }
             }
             None => false,
