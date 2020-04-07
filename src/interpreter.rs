@@ -1,10 +1,9 @@
 use crate::{
+    ast::{Expr, Stmt, StmtResult},
     environment::Environment,
-    expr::Expr,
     function::Function,
     logger::{Logger, LoggerImpl},
     lox::{ErrorData, LoxError, LoxResult, LoxValue},
-    stmt::{Stmt, StmtResult},
     token::{Token, TokenType},
 };
 use float_cmp::{ApproxEq, F64Margin};

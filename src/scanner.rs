@@ -1,7 +1,6 @@
 use crate::{
-    literal::Literal,
     logger::{Logger, LoggerImpl},
-    token::{Position, Token, TokenType},
+    token::{Literal, Position, Token, TokenType},
 };
 use std::{cell::RefCell, rc::Rc};
 
@@ -165,17 +164,13 @@ impl<'a> Scanner<'a> {
         if self.is_at_end() {
             return false;
         }
-        match self.source.chars().nth(self.current) {
-            Some(c) => {
-                if c == expected {
-                    self.current += 1;
-                    true
-                } else {
-                    false
-                }
+        if let Some(c) = self.source.chars().nth(self.current) {
+            if c == expected {
+                self.current += 1;
+                return true;
             }
-            None => false,
         }
+        false
     }
 
     fn string(&mut self) -> Option<(TokenType, Option<Literal>)> {

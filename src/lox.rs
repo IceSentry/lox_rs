@@ -1,11 +1,10 @@
 use crate::{
     function::Function,
     interpreter::Interpreter,
-    literal::Literal,
     logger::{Logger, LoggerImpl},
     parser::Parser,
     scanner::Scanner,
-    token::Token,
+    token::{Literal, Token},
 };
 
 use derive_new::new;
@@ -99,12 +98,6 @@ impl fmt::Display for LoxValue {
     }
 }
 
-pub struct Lox<'a> {
-    pub logger: &'a Rc<RefCell<LoggerImpl<'a>>>,
-    pub interpreter: Interpreter<'a>,
-    print_ast: bool,
-}
-
 #[derive(new)]
 pub struct ErrorData {
     pub token: Token,
@@ -119,12 +112,20 @@ pub enum LoxError {
 
 pub type LoxResult<T> = std::result::Result<T, LoxError>;
 
+pub struct Lox<'a> {
+    pub logger: &'a Rc<RefCell<LoggerImpl<'a>>>,
+    pub interpreter: Interpreter<'a>,
+    print_ast: bool,
+    debug: bool,
+}
+
 impl<'a> Lox<'a> {
-    pub fn new(logger: &'a Rc<RefCell<LoggerImpl<'a>>>, print_ast: bool) -> Self {
+    pub fn new(logger: &'a Rc<RefCell<LoggerImpl<'a>>>, print_ast: bool, debug: bool) -> Self {
         Lox {
             logger,
             interpreter: Interpreter::new(logger),
             print_ast,
+            debug,
         }
     }
 
@@ -135,13 +136,19 @@ impl<'a> Lox<'a> {
         let statements = parser.parse()?;
         if self.print_ast {
             // TODO print to <file>.ast.lox
-            self.logger
-                .borrow_mut()
-                .println(format!("{:?}", self.interpreter.environment));
-            for statement in statements {
+            if self.debug {
                 self.logger
                     .borrow_mut()
-                    .println(format!("{:#?}", statement));
+                    .println(format!("{:?}", self.interpreter.environment));
+            }
+            for statement in statements {
+                if self.debug {
+                    self.logger
+                        .borrow_mut()
+                        .println(format!("{:#?}", statement));
+                } else {
+                    self.logger.borrow_mut().println(format!("{}", statement));
+                }
             }
         } else {
             self.interpreter.interpret(&statements);

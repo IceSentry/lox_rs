@@ -10,32 +10,30 @@ print "for";
 
 for (let i = 0; i <= 10; i = i + 1) {
   if i == 2 or i == 3 { // skip 2 or 3
-    continue;
+    // continue;
   }
   print i;
   if i >= 5 {
     break;
-  } else {
   }
 }
 
-// print "while";
-
-// let i = 0;
-// while i <= 10 {
-//   {
-//     if i == 2 or i == 3 {
-//       continue;
-//     }
-//     print i;
-//     if i >= 5 {
-//       break;
-//     }
-//   }
-//   i = i + 1;
-// }
-
-
+print "while";
+{
+  let i = 0;
+  while i <= 10 {
+    {
+      if i == 2 or i == 3 {
+        // continue;
+      }
+      print i;
+      if i >= 5 {
+        break;
+      }
+    }
+    i = i + 1;
+  }
+}
 
 // print "loop";
 

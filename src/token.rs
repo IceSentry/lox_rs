@@ -1,3 +1,8 @@
+use derive_new::new;
+use fmt::{Display, Formatter, Result};
+use std::fmt;
+use std::fmt::Debug;
+
 #[rustfmt::skip]
 #[allow(non_camel_case_types)]
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -22,12 +27,6 @@ pub enum TokenType {
 
     EOF
 }
-
-use crate::literal::Literal;
-use derive_new::new;
-use fmt::Display;
-use std::fmt;
-use std::fmt::Debug;
 
 #[derive(new, Debug, Clone)]
 pub struct Token {
@@ -63,5 +62,26 @@ impl Position {
 impl fmt::Display for Position {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "ln {} col {}", self.line, self.column)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Literal {
+    String(String),
+    Number(f64),
+    FALSE,
+    TRUE,
+    Nil, // TODO remove Nil when Option<LoxValue> exists
+}
+
+impl Display for Literal {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        match self {
+            Literal::Number(value) => write!(f, "{}", value),
+            Literal::String(value) => write!(f, "\"{}\"", value),
+            Literal::FALSE => write!(f, "false"),
+            Literal::TRUE => write!(f, "true"),
+            Literal::Nil => write!(f, "nil"),
+        }
     }
 }

@@ -1,16 +1,14 @@
 #![warn(clippy::all)]
-// #![warn(clippy::pedantic)]
+#![warn(clippy::pedantic)]
 
+mod ast;
 mod environment;
-mod expr;
 mod function;
 mod interpreter;
-mod literal;
 mod logger;
 mod lox;
 mod parser;
 mod scanner;
-mod stmt;
 mod token;
 
 #[cfg(test)]
@@ -30,7 +28,7 @@ use lox::{Lox, LoxError};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "loxrs", about = "A rust implementation of a lox interpreter")]
-struct Opt {
+pub struct Opt {
     /// Activate debug mode
     #[structopt(short, long)]
     debug: bool,
@@ -47,18 +45,18 @@ fn main() -> io::Result<()> {
     let opt = Opt::from_args();
 
     let mut logger = DefaultLogger::new(opt.debug, false);
-    if let Some(input_path) = opt.input {
-        run_file(logger, &input_path, opt.ast)
+    if opt.input.is_some() {
+        run_file(logger, opt)
     } else {
         logger.is_repl = true;
-        run_prompt(logger)
+        run_prompt(logger, opt)
     }
 }
 
-fn run_file(logger: DefaultLogger, path: &str, print_ast: bool) -> io::Result<()> {
+fn run_file(logger: DefaultLogger, opt: Opt) -> io::Result<()> {
     let logger = Rc::new(RefCell::new(LoggerImpl::from(logger)));
-    let mut lox = Lox::new(&logger, print_ast);
-    let source = fs::read_to_string(path).expect("Failed to read file");
+    let mut lox = Lox::new(&logger, opt.ast, opt.debug);
+    let source = fs::read_to_string(opt.input.unwrap()).expect("Failed to read file");
     let result = lox.run(&source);
     match result {
         Err(LoxError::Parser(_)) => std::process::exit(65),
@@ -67,9 +65,9 @@ fn run_file(logger: DefaultLogger, path: &str, print_ast: bool) -> io::Result<()
     }
 }
 
-fn run_prompt(logger: DefaultLogger) -> io::Result<()> {
+fn run_prompt(logger: DefaultLogger, opt: Opt) -> io::Result<()> {
     let logger = Rc::new(RefCell::new(LoggerImpl::from(logger)));
-    let mut lox = Lox::new(&logger, false);
+    let mut lox = Lox::new(&logger, opt.ast, opt.debug);
     println!("lox prompt: ");
     loop {
         print!("> ");

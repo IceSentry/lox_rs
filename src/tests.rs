@@ -8,7 +8,7 @@ fn lox_run(source: &str) -> Vec<u8> {
     let mut output = Vec::new();
     let logger = TestLogger::new(&mut output);
     let logger = Rc::new(RefCell::new(LoggerImpl::from(logger)));
-    let mut lox = Lox::new(&logger, false);
+    let mut lox = Lox::new(&logger, false, false);
     let result = lox.run(source);
     assert!(result.is_ok());
     output.clone()
@@ -151,7 +151,7 @@ fn test_while() {
 fn test_for_continue_break() {
     let source = r#"
         for (var i = 0; i <= 10; i = i + 1) {
-            if i == 2 or i == 3 { // skip 2 or 3
+            if i == 2 or i == 3 {
                 continue;
             }
             print i;

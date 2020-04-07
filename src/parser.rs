@@ -1,10 +1,8 @@
 use crate::{
-    expr::Expr,
-    literal::Literal,
+    ast::{Expr, Stmt},
     logger::{Logger, LoggerImpl},
     lox::{ErrorData, LoxError, LoxResult},
-    stmt::Stmt,
-    token::{Token, TokenType},
+    token::{Literal, Token, TokenType},
 };
 use std::{cell::RefCell, rc::Rc};
 
@@ -418,7 +416,7 @@ impl<'a> Parser<'a> {
         if self.is_at_end() {
             None
         } else {
-            Some(self.peek().token_type.clone())
+            Some(self.peek().token_type)
         }
     }
 
