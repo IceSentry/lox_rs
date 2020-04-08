@@ -4,7 +4,7 @@ use crate::{
 };
 use std::fmt::{Debug, Display, Formatter, Result};
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum Expr {
     Binary(Box<Expr>, Token, Box<Expr>),
     Grouping(Box<Expr>),
@@ -28,6 +28,31 @@ impl Display for Expr {
             Expr::Variable(token) => write!(f, "{}", token),
             Expr::Assign(token, value) => write!(f, "({} = {})", token, value),
             Expr::Call(callee, _paren, args) => write!(f, "{}({:?})", callee, args),
+        }
+    }
+}
+
+impl Debug for Expr {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        match self {
+            Expr::Binary(left, operator, right) | Expr::Logical(left, operator, right) => f
+                .debug_tuple("Binary")
+                .field(left)
+                .field(operator)
+                .field(right)
+                .finish(),
+            Expr::Grouping(expression) => f.debug_tuple("Grouping").field(expression).finish(),
+            Expr::Literal(literal) => write!(f, "{:?}", literal),
+            Expr::Unary(operator, right) => {
+                f.debug_tuple("Unary").field(operator).field(right).finish()
+            }
+            Expr::Variable(token) => write!(f, "{:?}", token),
+            Expr::Assign(token, value) => {
+                f.debug_tuple("Assign").field(token).field(value).finish()
+            }
+            Expr::Call(callee, _paren, args) => {
+                f.debug_tuple("Call").field(callee).field(args).finish()
+            }
         }
     }
 }
