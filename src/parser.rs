@@ -46,7 +46,7 @@ impl<'a> Parser<'a> {
         statements.into_iter().collect()
     }
 
-    /// declaration -> let_decl
+    /// declaration -> `let_decl`
     ///              | statement ;
     fn declaration(&mut self) -> LoxResult<Stmt> {
         let result = if match_tokens!(self, TokenType::LET) {
@@ -61,7 +61,7 @@ impl<'a> Parser<'a> {
         result
     }
 
-    /// let_decl -> "let" IDENTIFIER ( "=" expression )? ";" ;
+    /// `let_decl` -> "let" IDENTIFIER ( "=" expression )? ";" ;
     fn let_declaration(&mut self) -> LoxResult<Stmt> {
         let name = self
             .consume(TokenType::IDENTIFIER, "Expected variable name")?
@@ -80,11 +80,11 @@ impl<'a> Parser<'a> {
         Ok(Stmt::Let(name, initializer))
     }
 
-    /// statement -> expr_stmt
-    ///            | for_stmt
-    ///            | if_stmt
-    ///            | print_stmt
-    ///            | while_stmt
+    /// statement -> `expr_stmt`
+    ///            | `for_stmt`
+    ///            | `if_stmt`
+    ///            | `print_stmt`
+    ///            | `while_stmt`
     ///            | break
     ///            | continue
     ///            | block ;
@@ -112,7 +112,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// for_stmt -> "for" "(" ( let_decl | expr_stmt | ";" )
+    /// `for_stmt` -> "for" "(" ( `let_decl` | `expr_stmt` | ";" )
     ///                       expression? ";"
     ///                       expression? ")" statement ;
     /// TODO "for" IDENTIFIER "in" IDENTIFIER block ;
@@ -155,20 +155,20 @@ impl<'a> Parser<'a> {
         Ok(body)
     }
 
-    /// "loop" block_statement ;
+    /// "loop" `block_statement` ;
     fn loop_statement(&mut self) -> LoxResult<Stmt> {
         let body = self.block_statement()?;
         Ok(Stmt::While(Expr::Literal(Literal::TRUE), Box::new(body)))
     }
 
-    /// "while" expression block_statement ;
+    /// "while" expression `block_statement` ;
     fn while_statement(&mut self) -> LoxResult<Stmt> {
         let condition = self.expression()?;
         let body = self.block_statement()?;
         Ok(Stmt::While(condition, Box::new(body)))
     }
 
-    /// print_stmt -> "print" expression ";" ;
+    /// `print_stmt` -> "print" expression ";" ;
     /// TODO remove this when we have a standard library
     fn print_statement(&mut self) -> LoxResult<Stmt> {
         let value = self.expression();
@@ -176,7 +176,7 @@ impl<'a> Parser<'a> {
         value.and_then(|value| Ok(Stmt::Print(value)))
     }
 
-    /// block_statement -> "{" block ;
+    /// `block_statement` -> "{" block ;
     fn block_statement(&mut self) -> LoxResult<Stmt> {
         self.consume(TokenType::LEFT_BRACE, "Expected '{'")?;
         Ok(Stmt::Block(self.block()?))
@@ -192,7 +192,7 @@ impl<'a> Parser<'a> {
         Ok(statements)
     }
 
-    /// if_stmt -> "if" expression block ( "else" block )? ;
+    /// `if_stmt` -> "if" expression block ( "else" block )? ;
     fn if_statement(&mut self) -> LoxResult<Stmt> {
         let condition = self.expression()?;
         let then_branch = self.block_statement()?;
@@ -205,7 +205,7 @@ impl<'a> Parser<'a> {
         Ok(Stmt::If(condition, Box::new(then_branch), else_branch))
     }
 
-    /// expr_stmt  -> expression ";"
+    /// `expr_stmt`  -> expression ";"
     fn expression_statement(&mut self) -> LoxResult<Stmt> {
         // TODO support expression with no ;
         let expr = self.expression();
@@ -219,7 +219,7 @@ impl<'a> Parser<'a> {
     }
 
     /// assignment -> IDENTIFIER "=" assignment
-    ///             | logic_or ;
+    ///             | `logic_or` ;
     fn assignment(&mut self) -> LoxResult<Expr> {
         let expr = self.logic_or();
 
@@ -237,7 +237,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// logic_or -> logic_and ( "or" logic_and )* ;
+    /// `logic_or` -> `logic_and` ( "or" `logic_and` )* ;
     fn logic_or(&mut self) -> LoxResult<Expr> {
         let mut expr = self.logic_and()?;
         while match_tokens!(self, TokenType::OR) {
@@ -248,7 +248,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    /// logic_and -> equality ( "and" equality )* ;
+    /// `logic_and` -> equality ( "and" equality )* ;
     fn logic_and(&mut self) -> LoxResult<Expr> {
         let mut expr = self.equality()?;
         while match_tokens!(self, TokenType::AND) {
@@ -310,7 +310,7 @@ impl<'a> Parser<'a> {
     }
 
     /// unary -> ( "!" | "-" ) unary
-    ///        | function_call ;
+    ///        | `function_call` ;
     fn unary(&mut self) -> LoxResult<Expr> {
         if match_tokens!(self, TokenType::BANG, TokenType::MINUS) {
             let operator = self.previous().clone();
@@ -321,7 +321,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// function_call -> primary ( "(" arguments? ")" )* ;
+    /// `function_call` -> primary ( "(" arguments? ")" )* ;
     /// arguments -> expression ( "," expression )*;
     fn function_call(&mut self) -> LoxResult<Expr> {
         let mut expr = self.primary()?;

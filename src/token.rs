@@ -1,10 +1,8 @@
 use derive_new::new;
-use fmt::{Display, Formatter, Result};
-use std::fmt;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display, Formatter, Result};
 
 #[rustfmt::skip]
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, clippy::module_name_repetitions)]
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum TokenType {
     // Single-character tokens
@@ -28,7 +26,7 @@ pub enum TokenType {
     EOF
 }
 
-#[derive(new, Debug, Clone)]
+#[derive(new, Clone)]
 pub struct Token {
     pub token_type: TokenType,
     pub lexeme: String,
@@ -37,8 +35,17 @@ pub struct Token {
 }
 
 impl Display for Token {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         write!(f, "{}", self.lexeme)
+    }
+}
+
+impl Debug for Token {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        match self.token_type {
+            TokenType::IDENTIFIER => write!(f, "{:?} {}", &self.token_type, &self.lexeme),
+            _ => write!(f, "{:?}", &self.token_type),
+        }
     }
 }
 
@@ -59,8 +66,8 @@ impl Position {
     }
 }
 
-impl fmt::Display for Position {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl Display for Position {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         write!(f, "ln {} col {}", self.line, self.column)
     }
 }

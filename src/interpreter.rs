@@ -25,6 +25,7 @@ fn init_globals() -> Environment {
         Function::Native(
             0,
             Box::new(|_| {
+                #[allow(clippy::cast_precision_loss)]
                 LoxValue::from(
                     SystemTime::now()
                         .duration_since(UNIX_EPOCH)
@@ -157,6 +158,7 @@ impl<'a> Interpreter<'a> {
             }
             Expr::Logical(left, operator, right) => {
                 let left = self.evaluate(left, env)?;
+                #[allow(clippy::match_same_arms)]
                 match (&operator.token_type, left.is_truthy()) {
                     (TokenType::OR, true) => return Ok(left),
                     (TokenType::OR, false) => (),

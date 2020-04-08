@@ -49,7 +49,7 @@ fn main() -> io::Result<()> {
         run_file(logger, opt)
     } else {
         logger.is_repl = true;
-        run_prompt(logger, opt)
+        run_prompt(logger, &opt)
     }
 }
 
@@ -65,7 +65,7 @@ fn run_file(logger: DefaultLogger, opt: Opt) -> io::Result<()> {
     }
 }
 
-fn run_prompt(logger: DefaultLogger, opt: Opt) -> io::Result<()> {
+fn run_prompt(logger: DefaultLogger, opt: &Opt) -> io::Result<()> {
     let logger = Rc::new(RefCell::new(LoggerImpl::from(logger)));
     let mut lox = Lox::new(&logger, opt.ast, opt.debug);
     println!("lox prompt: ");

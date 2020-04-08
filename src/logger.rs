@@ -6,6 +6,7 @@ use enum_dispatch::enum_dispatch;
 use std::io::Stdout;
 use std::io::Write;
 
+#[allow(clippy::module_name_repetitions)]
 #[enum_dispatch(Logger)]
 pub enum LoggerImpl<'a> {
     DefaultLogger(DefaultLogger),
@@ -51,6 +52,7 @@ pub trait Logger {
     }
 }
 
+#[allow(clippy::module_name_repetitions)]
 pub struct DefaultLogger {
     pub debug: bool,
     pub is_repl: bool,
@@ -85,6 +87,7 @@ impl Logger for DefaultLogger {
     }
 }
 
+#[allow(clippy::module_name_repetitions)]
 pub struct TestLogger<'a> {
     pub output: &'a mut Vec<u8>,
 }

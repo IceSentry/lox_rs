@@ -11,6 +11,52 @@ use derive_new::new;
 use float_cmp::{ApproxEq, F64Margin};
 use std::{cell::RefCell, fmt, rc::Rc};
 
+pub struct Lox<'a> {
+    pub logger: &'a Rc<RefCell<LoggerImpl<'a>>>,
+    pub interpreter: Interpreter<'a>,
+    print_ast: bool,
+    debug: bool,
+}
+
+impl<'a> Lox<'a> {
+    pub fn new(logger: &'a Rc<RefCell<LoggerImpl<'a>>>, print_ast: bool, debug: bool) -> Self {
+        Lox {
+            logger,
+            interpreter: Interpreter::new(logger),
+            print_ast,
+            debug,
+        }
+    }
+
+    pub fn run(&mut self, source: &str) -> LoxResult<()> {
+        let mut scanner = Scanner::new(self.logger, String::from(source));
+        let tokens = scanner.scan_tokens();
+        let mut parser = Parser::new(tokens.to_vec(), self.logger);
+        let statements = parser.parse()?;
+        if self.print_ast {
+            // TODO print to <file>.ast.lox
+            if self.debug {
+                self.logger
+                    .borrow_mut()
+                    .println(format!("{:#?}", self.interpreter.environment));
+            }
+            for statement in statements {
+                if self.debug {
+                    self.logger
+                        .borrow_mut()
+                        .println(format!("{:#?}", statement));
+                } else {
+                    self.logger.borrow_mut().println(format!("{}", statement));
+                }
+            }
+        } else {
+            self.interpreter.interpret(&statements);
+        }
+        Ok(())
+    }
+}
+
+#[allow(clippy::module_name_repetitions)]
 #[derive(Debug, Clone)]
 pub enum LoxValue {
     Nil,       // TODO implement Option<T> and remove nil
@@ -104,55 +150,12 @@ pub struct ErrorData {
     pub message: String,
 }
 
+#[allow(clippy::module_name_repetitions)]
 pub enum LoxError {
     Parser(ErrorData),
     Runtime(ErrorData),
     Panic(ErrorData),
 }
 
+#[allow(clippy::module_name_repetitions)]
 pub type LoxResult<T> = std::result::Result<T, LoxError>;
-
-pub struct Lox<'a> {
-    pub logger: &'a Rc<RefCell<LoggerImpl<'a>>>,
-    pub interpreter: Interpreter<'a>,
-    print_ast: bool,
-    debug: bool,
-}
-
-impl<'a> Lox<'a> {
-    pub fn new(logger: &'a Rc<RefCell<LoggerImpl<'a>>>, print_ast: bool, debug: bool) -> Self {
-        Lox {
-            logger,
-            interpreter: Interpreter::new(logger),
-            print_ast,
-            debug,
-        }
-    }
-
-    pub fn run(&mut self, source: &str) -> LoxResult<()> {
-        let mut scanner = Scanner::new(self.logger, String::from(source));
-        let tokens = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens.to_vec(), self.logger);
-        let statements = parser.parse()?;
-        if self.print_ast {
-            // TODO print to <file>.ast.lox
-            if self.debug {
-                self.logger
-                    .borrow_mut()
-                    .println(format!("{:?}", self.interpreter.environment));
-            }
-            for statement in statements {
-                if self.debug {
-                    self.logger
-                        .borrow_mut()
-                        .println(format!("{:#?}", statement));
-                } else {
-                    self.logger.borrow_mut().println(format!("{}", statement));
-                }
-            }
-        } else {
-            self.interpreter.interpret(&statements);
-        }
-        Ok(())
-    }
-}

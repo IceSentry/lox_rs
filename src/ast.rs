@@ -84,6 +84,7 @@ macro_rules! indent {
 }
 
 impl Stmt {
+    #[allow(clippy::range_plus_one)]
     fn fmt(&self, f: &mut Formatter<'_>, depth: i32) -> Result {
         match self {
             Stmt::Expression(expression) => write!(f, "{}", expression),

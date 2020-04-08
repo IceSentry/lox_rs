@@ -244,32 +244,31 @@ impl<'a> Scanner<'a> {
     }
 
     fn identifier(&mut self) -> (TokenType, Option<Literal>) {
-        use TokenType::*;
         while is_alphanumeric(self.peek()) {
             self.advance();
         }
         let current_lexeme = &self.source[self.start..self.current];
         match current_lexeme {
-            "and" => (AND, None),
-            "class" => (CLASS, None),
-            "else" => (ELSE, None),
-            "false" => (FALSE, Some(Literal::FALSE)),
-            "for" => (FOR, None),
-            "fun" => (FUN, None),
-            "if" => (IF, None),
-            "nil" => (NIL, Some(Literal::Nil)),
-            "or" => (OR, None),
-            "print" => (PRINT, None),
-            "return" => (RETURN, None),
-            "super" => (SUPER, None),
-            "this" => (THIS, None),
-            "true" => (TRUE, Some(Literal::TRUE)),
-            "let" | "var" => (LET, None),
-            "while" => (WHILE, None),
-            "loop" => (LOOP, None),
-            "break" => (BREAK, None),
-            "continue" => (CONTINUE, None),
-            _ => (IDENTIFIER, None),
+            "and" => (TokenType::AND, None),
+            "class" => (TokenType::CLASS, None),
+            "else" => (TokenType::ELSE, None),
+            "false" => (TokenType::FALSE, Some(Literal::FALSE)),
+            "for" => (TokenType::FOR, None),
+            "fun" => (TokenType::FUN, None),
+            "if" => (TokenType::IF, None),
+            "nil" => (TokenType::NIL, Some(Literal::Nil)),
+            "or" => (TokenType::OR, None),
+            "print" => (TokenType::PRINT, None),
+            "return" => (TokenType::RETURN, None),
+            "super" => (TokenType::SUPER, None),
+            "this" => (TokenType::THIS, None),
+            "true" => (TokenType::TRUE, Some(Literal::TRUE)),
+            "let" | "var" => (TokenType::LET, None),
+            "while" => (TokenType::WHILE, None),
+            "loop" => (TokenType::LOOP, None),
+            "break" => (TokenType::BREAK, None),
+            "continue" => (TokenType::CONTINUE, None),
+            _ => (TokenType::IDENTIFIER, None),
         }
     }
 }

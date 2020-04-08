@@ -22,10 +22,10 @@ fn assert_output(source: &str, expected: &str) {
     );
 }
 
-fn assert_output_list(source: &str, expected: Vec<&str>) {
+fn assert_output_list(source: &str, expected: &[&str]) {
     let output = lox_run(source);
     let output = String::from_utf8(output).expect("Not UTF-8");
-    for (i, result) in output.split('\n').into_iter().enumerate() {
+    for (i, result) in output.split('\n').enumerate() {
         if !result.is_empty() {
             assert_eq!(result, expected[i]);
         }
@@ -73,7 +73,7 @@ fn test_block() {
 
     assert_output_list(
         source,
-        vec![
+        &[
             "inner a", "outer b", "global c", "outer a", "outer b", "global c", "inner d",
             "global a", "global b", "global c",
         ],
@@ -131,7 +131,7 @@ fn test_logical_operator() {
         print nil or "yes"; // "yes".
     "#;
 
-    assert_output_list(source, vec!["hi", "yes"]);
+    assert_output_list(source, &["hi", "yes"]);
 }
 
 #[test]
@@ -144,10 +144,11 @@ fn test_while() {
         }
     "#;
 
-    assert_output_list(source, vec!["0", "1", "2", "3", "4"]);
+    assert_output_list(source, &["0", "1", "2", "3", "4"]);
 }
 
 #[test]
+
 fn test_for_continue_break() {
     let source = r#"
         for (var i = 0; i <= 10; i = i + 1) {
@@ -161,5 +162,5 @@ fn test_for_continue_break() {
         }
     "#;
 
-    assert_output_list(source, vec!["0", "1", "4", "5"]);
+    assert_output_list(source, &["0", "1", "4", "5"]);
 }
