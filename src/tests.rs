@@ -88,6 +88,7 @@ fn test_operator_precedence() {
     assert_output(source, "56");
 }
 
+#[allow(clippy::shadow_unrelated)]
 #[test]
 fn test_if() {
     let source = r#"

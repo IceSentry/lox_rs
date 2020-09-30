@@ -29,12 +29,12 @@ use lox::{Lox, LoxError};
 #[derive(Debug, StructOpt)]
 #[structopt(name = "loxrs", about = "A rust implementation of a lox interpreter")]
 pub struct Opt {
+    /// Input file
+    input: Option<String>,
+
     /// Activate debug mode
     #[structopt(short, long)]
     debug: bool,
-
-    /// Input file
-    input: Option<String>,
 
     /// Print ast to <file>.ast.lox
     #[structopt(long)]
